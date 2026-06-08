@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "include": [
+    "./src/app/api/ai/_lib/contracts.ts",
+    "./src/app/api/ai/_lib/errors.ts",
+    "./src/app/api/ai/_lib/handlers.ts",
+    "./src/app/api/ai/_lib/ports.ts",
+    "./src/app/api/ai/_lib/query.ts",
+    "./src/app/api/ai/_lib/serialization.ts",
+    "./src/app/api/ai/_lib/service.ts",
+    "./src/app/api/ai/_lib/telemetry.ts",
+    "./src/app/api/ai/tests/**/*.ts"
+  ],
+  "exclude": ["./node_modules"]
+}

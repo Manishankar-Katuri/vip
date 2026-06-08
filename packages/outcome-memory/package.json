@@ -1,0 +1,18 @@
+{
+  "name": "@vip/outcome-memory",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "test": "tsc -p tsconfig.test.json --outDir node_modules/.cache/vip-outcome-memory-tests && node --test node_modules/.cache/vip-outcome-memory-tests/outcome-memory/src/tests/outcome-memory.test.js"
+  },
+  "dependencies": {
+    "@vip/cognitive-core": "file:../cognitive-core"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

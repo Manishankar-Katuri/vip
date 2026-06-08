@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "noEmit": false
+  },
+  "include": [
+    "src/lib/content-execution/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

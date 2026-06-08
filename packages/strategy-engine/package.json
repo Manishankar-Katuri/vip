@@ -1,0 +1,36 @@
+{
+  "name": "@vip/strategy-engine",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./types": "./types/index.ts",
+    "./interfaces": "./interfaces/index.ts",
+    "./aggregation": "./aggregation/index.ts",
+    "./rules": "./rules/index.ts",
+    "./recommendations": "./recommendations/index.ts",
+    "./scoring": "./scoring/index.ts",
+    "./explanations": "./explanations/index.ts",
+    "./weekly": "./weekly/index.ts",
+    "./persistence": "./persistence/index.ts",
+    "./lifecycle": "./lifecycle/index.ts",
+    "./feedback": "./feedback/index.ts",
+    "./dashboard": "./dashboard/index.ts",
+    "./events": "./events/index.ts",
+    "./validation": "./validation/index.ts",
+    "./integration": "./integration/postgres-strategy-operations.ts",
+    "./examples": "./examples/mock-weekly-strategy.ts"
+  },
+  "scripts": {
+    "test": "tsc -p tsconfig.test.json --outDir node_modules/.cache/vip-strategy-engine-tests && node --test node_modules/.cache/vip-strategy-engine-tests/weekly/weekly-strategy-generator.test.js node_modules/.cache/vip-strategy-engine-tests/weekly/weekly-analysis-report.test.js node_modules/.cache/vip-strategy-engine-tests/operations/operational-orchestration.test.js node_modules/.cache/vip-strategy-engine-tests/validation/strategy-validation.test.js"
+  },
+  "dependencies": {
+    "@vip/database": "file:../database"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

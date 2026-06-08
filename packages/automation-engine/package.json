@@ -1,0 +1,35 @@
+{
+  "name": "@vip/automation-engine",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types/index.ts",
+    "./schemas": "./src/schemas/index.ts",
+    "./rules": "./src/rules/index.ts",
+    "./mappings": "./src/mappings/index.ts",
+    "./services": "./src/services/index.ts",
+    "./repositories": "./src/repositories/index.ts",
+    "./events": "./src/events/index.ts",
+    "./execution": "./src/execution/index.ts",
+    "./telemetry": "./src/telemetry/index.ts",
+    "./dto": "./src/dto/index.ts",
+    "./queue": "./src/queue/exports.ts",
+    "./integration": "./src/integration/index.ts"
+  },
+  "scripts": {
+    "test": "tsc -p tsconfig.test.json --outDir node_modules/.cache/vip-automation-engine-tests && node --test node_modules/.cache/vip-automation-engine-tests/tests/automation-engine.test.js"
+  },
+  "dependencies": {
+    "@vip/recommendation-engine": "file:../recommendation-engine",
+    "@vip/database": "file:../database",
+    "bullmq": "^5.58.5",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "@vip/copilot-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./types": "./types/index.ts",
+    "./interfaces": "./interfaces/index.ts",
+    "./agents": "./agents/index.ts",
+    "./runtime": "./runtime/index.ts",
+    "./persistence": "./persistence/index.ts",
+    "./integration": "./integration/index.ts",
+    "./examples": "./examples/conversational-workflow.ts"
+  },
+  "scripts": {
+    "test": "tsc -p tsconfig.test.json --outDir node_modules/.cache/vip-copilot-tests && node --test node_modules/.cache/vip-copilot-tests/tests/copilot-runtime.test.js"
+  },
+  "dependencies": {
+    "@vip/action-engine": "file:../action-engine",
+    "@vip/database": "file:../database",
+    "@vip/strategy-engine": "file:../strategy-engine"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

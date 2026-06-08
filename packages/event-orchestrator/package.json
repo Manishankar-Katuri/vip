@@ -1,0 +1,35 @@
+{
+  "name": "@vip/event-orchestrator",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./dto": "./src/dto/index.ts",
+    "./schemas": "./src/schemas/index.ts",
+    "./registry": "./src/registry/index.ts",
+    "./bus": "./src/bus/index.ts",
+    "./routing": "./src/routing/index.ts",
+    "./replay": "./src/replay/index.ts",
+    "./subscribers": "./src/subscribers/index.ts",
+    "./pipelines": "./src/pipelines/index.ts",
+    "./telemetry": "./src/telemetry/index.ts",
+    "./transport": "./src/transport/index.ts",
+    "./services": "./src/services/index.ts"
+  },
+  "scripts": {
+    "test": "tsc -p tsconfig.test.json --outDir node_modules/.cache/vip-event-orchestrator-tests && node --test node_modules/.cache/vip-event-orchestrator-tests/tests/event-orchestrator.test.js"
+  },
+  "dependencies": {
+    "@vip/cognitive-core": "file:../cognitive-core",
+    "@vip/analytics-intelligence": "file:../analytics-intelligence",
+    "@vip/automation-engine": "file:../automation-engine",
+    "@vip/recommendation-engine": "file:../recommendation-engine",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

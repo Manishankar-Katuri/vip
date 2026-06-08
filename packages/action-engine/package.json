@@ -1,0 +1,31 @@
+{
+  "name": "@vip/action-engine",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./types": "./types/index.ts",
+    "./interfaces": "./interfaces/index.ts",
+    "./orchestration": "./orchestration/index.ts",
+    "./queue": "./queue/index.ts",
+    "./workers": "./workers/index.ts",
+    "./validation": "./validation/index.ts",
+    "./persistence": "./persistence/index.ts",
+    "./integration": "./integration/index.ts",
+    "./examples": "./examples/social-publishing-workflow.ts"
+  },
+  "scripts": {
+    "test": "tsc -p tsconfig.test.json --outDir node_modules/.cache/vip-action-engine-tests && node --test node_modules/.cache/vip-action-engine-tests/tests/action-engine.test.js"
+  },
+  "dependencies": {
+    "@vip/database": "file:../database",
+    "@vip/strategy-engine": "file:../strategy-engine",
+    "bullmq": "^5.58.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

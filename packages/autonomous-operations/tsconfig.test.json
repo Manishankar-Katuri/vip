@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@vip/action-engine": ["../action-engine/index.ts"],
+      "@vip/agent-runtime": ["../agent-runtime/src/index.ts"],
+      "@vip/cognitive-core": ["../cognitive-core/src/index.ts"],
+      "@vip/event-orchestrator": ["../event-orchestrator/src/index.ts"],
+      "@vip/learning-engine": ["../learning-engine/src/index.ts"],
+      "@vip/outcome-memory": ["../outcome-memory/src/index.ts"]
+    }
+  },
+  "include": ["./src/**/*.ts"],
+  "exclude": ["./node_modules"]
+}

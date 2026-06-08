@@ -1,0 +1,32 @@
+{
+  "name": "@vip/observability",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./dto": "./src/dto/index.ts",
+    "./logging": "./src/logging/index.ts",
+    "./tracing": "./src/tracing/index.ts",
+    "./metrics": "./src/metrics/index.ts",
+    "./errors": "./src/errors/index.ts",
+    "./health": "./src/health/index.ts",
+    "./dashboards": "./src/dashboards/index.ts",
+    "./telemetry": "./src/telemetry/index.ts",
+    "./instrumentation": "./src/instrumentation/index.ts",
+    "./services": "./src/services/index.ts"
+  },
+  "scripts": {
+    "test": "tsc -p tsconfig.test.json --outDir node_modules/.cache/vip-observability-tests && node --test node_modules/.cache/vip-observability-tests/tests/observability.test.js"
+  },
+  "dependencies": {
+    "@vip/automation-engine": "file:../automation-engine",
+    "@vip/event-orchestrator": "file:../event-orchestrator",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

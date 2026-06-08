@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "files": [
+    "./validators/workspace-id.ts",
+    "./validators/workspace-id.test.ts",
+    "./workspace/resolve-workspace.ts",
+    "./workspace/resolve-workspace.test.ts"
+  ]
+}

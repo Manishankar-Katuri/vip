@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": [
+    "./src/lib/phase-e/contracts.ts",
+    "./src/lib/phase-e/provenance.ts",
+    "./src/lib/phase-e/pdf.ts",
+    "./src/lib/phase-e/similarity-utils.ts",
+    "./tests/phase-e.test.ts"
+  ],
+  "exclude": ["./node_modules"]
+}

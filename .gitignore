@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Next.js and build output
+.next/
+out/
+dist/
+build/
+coverage/
+
+# Logs
+*.log
+*.err
+*.out
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local caches
+.turbo/
+.cache/
+**/.cache/
+*.tsbuildinfo
+*.tmp
+*.tmp*
+
+# Generated/demo artifacts
+/outputs/
+/reports/
+apps/web/public/generated/
+apps/web/.next/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Nested repo backups created while preparing monorepo demo commits
+**/.git.backup*/

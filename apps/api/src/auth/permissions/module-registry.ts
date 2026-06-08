@@ -1,0 +1,52 @@
+import { Permission } from "./permissions.enum";
+
+export const MODULES = {
+  analytics:[
+    Permission.VIEW_MORNING_BRIEFING,
+    Permission.VIEW_VIP_SCORE,
+    Permission.VIEW_REVENUE,
+    Permission.VIEW_REPUTATION,
+    Permission.VIEW_AI_INSIGHTS
+  ],
+  social:[
+    Permission.VIEW_SOCIAL_INTELLIGENCE
+  ],
+  market:[
+    Permission.VIEW_MARKET_INTELLIGENCE,
+    Permission.VIEW_COMPETITORS
+  ],
+  crm:[
+    Permission.VIEW_LEADS,
+    Permission.MANAGE_LEADS,
+    Permission.MANAGE_FOLLOWUPS,
+    Permission.MANAGE_CALLS,
+    Permission.MANAGE_TEMPLATES
+  ],
+  content:[
+    Permission.VIEW_CONTENT,
+    Permission.CREATE_CONTENT,
+    Permission.EDIT_CONTENT,
+    Permission.DELETE_CONTENT,
+    Permission.MANAGE_CAMPAIGNS,
+    Permission.MANAGE_CALENDAR,
+    Permission.MANAGE_HASHTAGS,
+    Permission.MANAGE_BRAND_VOICE
+  ],
+  recommendations:[
+    Permission.VIEW_RECOMMENDATIONS
+  ],
+  strategy:[
+    Permission.VIEW_STRATEGY
+  ],
+  workflows:[
+    Permission.VIEW_WORKFLOWS,
+    Permission.MANAGE_WORKFLOWS
+  ],
+  admin:[
+    Permission.MANAGE_USERS,
+    Permission.MANAGE_ROLES,
+    Permission.MANAGE_HOSPITALS,
+    Permission.VIEW_AUDIT_LOGS,
+    Permission.MANAGE_INTEGRATIONS
+  ]
+} as const;

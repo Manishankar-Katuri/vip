@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    "paths": {
+      "@vip/cognitive-core": ["../cognitive-core/src/index.ts"]
+    }
+  },
+  "include": ["./src/**/*.ts"],
+  "exclude": ["./node_modules"]
+}

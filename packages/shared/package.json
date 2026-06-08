@@ -1,0 +1,22 @@
+{
+  "name": "@vip/shared",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./validators/workspace-id": "./validators/workspace-id.ts",
+    "./workspace/resolve-workspace": "./workspace/resolve-workspace.ts"
+  },
+  "scripts": {
+    "test": "tsc -p tsconfig.test.json --outDir node_modules/.cache/vip-shared-tests && node --test node_modules/.cache/vip-shared-tests/validators/workspace-id.test.js node_modules/.cache/vip-shared-tests/workspace/resolve-workspace.test.js"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

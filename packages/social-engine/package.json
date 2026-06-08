@@ -1,0 +1,23 @@
+{
+  "name": "@vip/social-engine",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./collectors": "./collectors/index.ts",
+    "./services": "./services/index.ts",
+    "./strategy": "./strategy/index.ts",
+    "./analytics": "./analytics/index.ts"
+  },
+  "dependencies": {
+    "@vip/database": "file:../database",
+    "@vip/market-intelligence": "file:../market-intelligence",
+    "@vip/shared": "file:../shared",
+    "axios": "^1.16.1"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "@vip/recommendation-engine",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./types": "./types/index.ts",
+    "./schemas": "./schemas/index.ts",
+    "./analyzers": "./analyzers/index.ts",
+    "./scoring": "./scoring/index.ts",
+    "./explanations": "./explanations/index.ts",
+    "./priority": "./priority/index.ts",
+    "./repositories": "./repositories/index.ts",
+    "./events": "./events/index.ts",
+    "./reasoning": "./reasoning/index.ts"
+  },
+  "scripts": {
+    "test": "tsc -p tsconfig.test.json --outDir node_modules/.cache/vip-recommendation-engine-tests && node --test node_modules/.cache/vip-recommendation-engine-tests/tests/recommendation-engine.test.js"
+  },
+  "dependencies": {
+    "@vip/cognitive-core": "file:../cognitive-core",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

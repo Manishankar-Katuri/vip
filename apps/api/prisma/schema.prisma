@@ -1,0 +1,761 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model HospitalRequest {
+  id                String             @id @default(uuid())
+  hospitalName      String
+  contactName       String
+  email             String
+  website           String?
+  status            RequestStatus      @default(NEW)
+  createdAt         DateTime           @default(now())
+  hospitalWorkspace HospitalWorkspace?
+}
+
+model HospitalWorkspace {
+  id                String            @id @default(uuid())
+  hospitalRequestId String?           @unique
+  name              String
+  hospitalName      String
+  slug              String            @unique
+  hospitalCode      String?           @unique
+  domain            String?
+  industryType      String?
+  contactEmail      String?
+  specialty         String?
+  city              String?
+  status            WorkspaceStatus   @default(CREATING)
+  lastSyncAt        DateTime?
+  disabledAt        DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+  contentDrafts     ContentDraft[]
+  hospitalRequest   HospitalRequest?  @relation(fields: [hospitalRequestId], references: [id])
+  knowledgeSources  KnowledgeSource[]
+  vectorMemories    VectorMemory[]
+  websiteContents   WebsiteContent[]
+  graphEntities     IntelligenceGraphEntity[]
+  graphRelationships IntelligenceGraphRelationship[]
+  intelligenceSignals IntelligenceSignal[]
+  intelligencePriorities IntelligencePriority[]
+  causalChains      IntelligenceCausalChain[]
+  recommendationProvenance RecommendationProvenance[]
+  intelligenceTraces IntelligenceTrace[]
+  reasoningAuditLogs ReasoningAuditLog[]
+  outcomeTrackings  RecommendationOutcomeTracking[]
+  users             User[]
+  invitations       Invitation[]
+  auditLogs         AuditLog[]
+  aiAuditLogs       AiAuditLog[]
+  brandVoice        BrandVoice?
+  templates         Template[]
+  contentCalendarItems ContentCalendarItem[]
+  contentCalendarScripts ContentCalendarScript[]
+  contentGeneratorRuns ContentGeneratorRun[]
+  rolePermissions RolePermission[]
+  integrationConfigs HospitalIntegrationConfig[]
+}
+
+model HospitalIntegrationConfig {
+  id                   String                  @id @default(uuid())
+  hospitalId           String
+  provider             String
+  apiName              String
+  baseUrl              String?
+  encryptedCredentials String
+  credentialMeta       Json                    @default("{}")
+  settings             Json                    @default("{}")
+  status               IntegrationConfigStatus @default(PENDING)
+  lastValidatedAt      DateTime?
+  lastTestedAt         DateTime?
+  lastSyncAt           DateTime?
+  lastError            String?
+  createdBy            String?
+  updatedBy            String?
+  createdAt            DateTime                @default(now())
+  updatedAt            DateTime                @updatedAt
+  hospital             HospitalWorkspace       @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@unique([hospitalId, provider, apiName])
+  @@index([hospitalId])
+  @@index([provider])
+  @@index([status, updatedAt])
+  @@index([updatedAt])
+}
+
+model User {
+  id         String            @id @default(uuid())
+  email      String            @unique
+  name       String?
+  role       UserRole          @default(STAFF)
+  hospitalId String?
+  isGlobal   Boolean           @default(false)
+  isActive   Boolean           @default(true)
+  passwordHash String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  hospital   HospitalWorkspace? @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
+  auditLogs  AuditLog[]
+  aiAuditLogs AiAuditLog[]
+  createdCalendarItems ContentCalendarItem[] @relation("ContentCalendarCreatedBy")
+  assignedCalendarItems ContentCalendarItem[] @relation("ContentCalendarAssignedTo")
+  createdCalendarScripts ContentCalendarScript[] @relation("ContentCalendarScriptCreatedBy")
+  approvedCalendarScripts ContentCalendarScript[] @relation("ContentCalendarScriptApprovedBy")
+
+  @@index([role])
+  @@index([hospitalId])
+  @@index([isGlobal])
+  @@index([isActive])
+}
+
+model Invitation {
+  id         String             @id @default(uuid())
+  email      String
+  role       UserRole
+  hospitalId String?
+  isGlobal   Boolean
+  token      String             @unique
+  status     InvitationStatus   @default(PENDING)
+  expiresAt  DateTime
+  createdAt  DateTime           @default(now())
+  acceptedAt DateTime?
+  hospital   HospitalWorkspace? @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
+
+  @@index([email])
+  @@index([status, expiresAt])
+  @@index([hospitalId])
+}
+
+model AuditLog {
+  id         String             @id @default(uuid())
+  userId     String?
+  action     String
+  resource   String
+  resourceId String?
+  hospitalId String?
+  createdAt  DateTime           @default(now())
+  user       User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  hospital   HospitalWorkspace? @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([hospitalId, createdAt])
+  @@index([resource, resourceId])
+}
+
+model AiAuditLog {
+  id               String             @id @default(uuid())
+  hospitalId       String?
+  userId           String?
+  roleId           String?
+  feature          String
+  provider         String
+  model            String
+  promptTokens     Int                @default(0)
+  completionTokens Int                @default(0)
+  totalTokens      Int                @default(0)
+  estimatedCost    Float              @default(0)
+  responseTimeMs   Int
+  success          Boolean
+  errorMessage     String?
+  createdAt        DateTime           @default(now())
+  hospital         HospitalWorkspace? @relation(fields: [hospitalId], references: [id], onDelete: SetNull)
+  user             User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([hospitalId, createdAt])
+  @@index([userId, createdAt])
+  @@index([roleId, createdAt])
+  @@index([feature, createdAt])
+  @@index([provider, createdAt])
+  @@index([model, createdAt])
+  @@index([success, createdAt])
+}
+
+model AiModelPricing {
+  id                          String   @id @default(uuid())
+  provider                    String
+  model                       String
+  inputTokenPricePerMillion   Float
+  outputTokenPricePerMillion  Float
+  currency                    String   @default("USD")
+  isActive                    Boolean  @default(true)
+  effectiveFrom               DateTime @default(now())
+  effectiveTo                 DateTime?
+  createdAt                   DateTime @default(now())
+  updatedAt                   DateTime @updatedAt
+
+  @@unique([provider, model, currency, effectiveFrom])
+  @@index([provider, model, isActive])
+  @@index([effectiveFrom, effectiveTo])
+}
+
+model RolePermission {
+  id         String             @id @default(uuid())
+  hospitalId String?
+  roleId     UserRole
+  featureKey String
+  enabled    Boolean
+  createdAt  DateTime           @default(now())
+  updatedAt  DateTime           @updatedAt
+  hospital   HospitalWorkspace? @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@unique([hospitalId, roleId, featureKey])
+  @@index([hospitalId])
+  @@index([roleId])
+  @@index([featureKey])
+  @@map("AdminRolePermission")
+}
+
+model BrandVoice {
+  id         String            @id @default(uuid())
+  hospitalId String            @unique
+  tone       String            @default("")
+  style      String            @default("")
+  audience   String            @default("")
+  messaging  String            @default("")
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  hospital   HospitalWorkspace @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+}
+
+model Template {
+  id         String            @id @default(uuid())
+  hospitalId String
+  title      String
+  category   String
+  content    String
+  isActive   Boolean           @default(true)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  hospital   HospitalWorkspace @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@index([hospitalId, category])
+  @@index([hospitalId, isActive])
+}
+
+model KnowledgeSource {
+  id          String            @id @default(uuid())
+  workspaceId String
+  sourceType  String
+  sourceName  String
+  sourceUrl   String?
+  createdAt   DateTime          @default(now())
+  workspace   HospitalWorkspace @relation(fields: [workspaceId], references: [id])
+}
+
+model WebsiteContent {
+  id             String            @id @default(uuid())
+  workspaceId    String
+  url            String
+  title          String?
+  description    String?
+  content        String
+  createdAt      DateTime          @default(now())
+  vectorMemories VectorMemory[]
+  workspace      HospitalWorkspace @relation(fields: [workspaceId], references: [id])
+}
+
+model VectorMemory {
+  id          String            @id @default(uuid())
+  workspaceId String
+  sourceId    String
+  chunkText   String
+  embedding   Json
+  createdAt   DateTime          @default(now())
+  source      WebsiteContent    @relation(fields: [sourceId], references: [id])
+  workspace   HospitalWorkspace @relation(fields: [workspaceId], references: [id])
+}
+
+model ContentDraft {
+  id          String            @id @default(uuid())
+  workspaceId String
+  title       String
+  content     String
+  platform    ContentPlatform
+  status      ContentStatus     @default(DRAFT)
+  createdAt   DateTime          @default(now())
+  workspace   HospitalWorkspace @relation(fields: [workspaceId], references: [id])
+}
+
+model ContentCalendarItem {
+  id             String                  @id @default(uuid())
+  hospitalId     String
+  title          String
+  description    String                  @default("")
+  contentType    ContentCalendarType
+  category       ContentCalendarCategory
+  status         ContentCalendarStatus    @default(IDEA)
+  priority       ContentCalendarPriority  @default(MEDIUM)
+  scheduledDate  DateTime
+  publishedDate  DateTime?
+  campaignId     String?
+  createdBy      String
+  assignedTo     String?
+  tags           String[]
+  isSpecialDay   Boolean                 @default(false)
+  specialDayName String?
+  position       Int                     @default(0)
+  deletedAt      DateTime?
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+  hospital       HospitalWorkspace       @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  creator        User                    @relation("ContentCalendarCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict)
+  assignee       User?                   @relation("ContentCalendarAssignedTo", fields: [assignedTo], references: [id], onDelete: SetNull)
+  scripts        ContentCalendarScript[]
+
+  @@index([hospitalId, scheduledDate])
+  @@index([hospitalId, status, scheduledDate])
+  @@index([hospitalId, contentType])
+  @@index([hospitalId, category])
+  @@index([hospitalId, assignedTo])
+  @@index([campaignId])
+  @@index([deletedAt])
+}
+
+model ContentCalendarScript {
+  id             String                      @id @default(uuid())
+  calendarItemId String
+  hospitalId     String
+  title          String
+  scriptType     ContentScriptType
+  status         ContentScriptStatus         @default(DRAFT)
+  hook           String                      @default("")
+  script         String                      @default("")
+  caption        String                      @default("")
+  cta            String                      @default("")
+  hashtags       String[]
+  metadata       Json                        @default("{}")
+  version        Int                         @default(1)
+  createdBy      String
+  approvedBy     String?
+  approvedAt     DateTime?
+  createdAt      DateTime                    @default(now())
+  updatedAt      DateTime                    @updatedAt
+  calendarItem   ContentCalendarItem         @relation(fields: [calendarItemId], references: [id], onDelete: Cascade)
+  hospital       HospitalWorkspace           @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+  creator        User                        @relation("ContentCalendarScriptCreatedBy", fields: [createdBy], references: [id], onDelete: Restrict)
+  approver       User?                       @relation("ContentCalendarScriptApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
+
+  @@unique([calendarItemId, version])
+  @@index([hospitalId, createdAt])
+  @@index([hospitalId, status])
+  @@index([calendarItemId, version])
+}
+
+model ContentGeneratorRun {
+  id                 String            @id @default(uuid())
+  hospitalId         String
+  createdBy          String
+  idea               String
+  platform           String
+  format             String
+  audience           String            @default("")
+  objective          String            @default("")
+  doctorName         String?
+  serviceLine        String?
+  languagePlan       String            @default("")
+  urgency            String            @default("normal")
+  requestType        String            @default("outside_strategy")
+  desiredPublishDate DateTime?
+  strategyFit        String            @default("Adjacent")
+  contentPillar      String            @default("education")
+  generatedContext   Json              @default("{}")
+  evidence           Json              @default("[]")
+  safetyNotes        Json              @default("[]")
+  output             Json              @default("{}")
+  status             String            @default("DRAFT")
+  rejectionReason    String?
+  calendarItemId     String?
+  scriptId           String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+  hospital           HospitalWorkspace @relation(fields: [hospitalId], references: [id], onDelete: Cascade)
+
+  @@index([hospitalId, createdAt])
+  @@index([hospitalId, status])
+  @@index([hospitalId, strategyFit])
+  @@index([calendarItemId])
+  @@index([scriptId])
+}
+
+model Review {
+  id            String   @id @default(uuid())
+  workspaceId   String
+  author        String?
+  rating        Int
+  content       String
+  source        String
+  sentiment     String?
+  category      String?
+  issueDetected Boolean  @default(false)
+  aiReply       String?
+  status        String   @default("PENDING")
+  createdAt     DateTime @default(now())
+}
+
+model ReviewAlert {
+  id          String   @id @default(uuid())
+  workspaceId String
+  category    String
+  count       Int
+  severity    String
+  status      String   @default("OPEN")
+  createdAt   DateTime @default(now())
+}
+
+model BrandMemory {
+  id              String   @id @default(uuid())
+  workspaceId     String
+  hospitalName    String?
+  specialty       String?
+  tone            String?
+  audience        String?
+  doctors         Json?
+  platforms       Json?
+  topics          Json?
+  hashtags        Json?
+  contentPatterns Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model EventEnvelope {
+  id             String          @id
+  eventId        String          @unique
+  workspaceId    String
+  idempotencyKey String
+  topic          String
+  eventType      String
+  eventVersion   Int
+  aggregateType  String
+  aggregateId    String
+  event          Json
+  metadata       Json
+  priority       String          @default("NORMAL")
+  publishedAt    DateTime
+  occurredAt     DateTime
+  sequence       Int             @unique @default(autoincrement())
+  state          String
+  deliveries     EventDelivery[]
+  deadLetters    EventDeadLetter[]
+
+  @@unique([workspaceId, idempotencyKey])
+  @@index([priority, state, publishedAt])
+  @@index([workspaceId, aggregateId, sequence])
+  @@index([eventType, occurredAt])
+  @@index([topic, state, publishedAt])
+}
+
+model EventDelivery {
+  id           String        @id @default(uuid())
+  envelopeId   String
+  subscriberId String
+  deliveryKey  String        @unique
+  attempt      Int
+  status       String
+  startedAt    DateTime
+  completedAt  DateTime
+  latencyMs    Int
+  error        String?
+  envelope     EventEnvelope @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
+
+  @@index([subscriberId, status, completedAt])
+  @@index([envelopeId, subscriberId])
+}
+
+model EventDeadLetter {
+  id             String        @id @default(uuid())
+  workspaceId    String
+  envelopeId     String
+  subscriberId   String
+  attempts       Int
+  failure        String
+  deadLetteredAt DateTime
+  snapshot       Json
+  envelope       EventEnvelope @relation(fields: [envelopeId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, deadLetteredAt])
+  @@index([subscriberId, deadLetteredAt])
+}
+
+model IntelligenceGraphEntity {
+  id          String   @id @default(uuid())
+  workspaceId String
+  entityType  String
+  entityId    String
+  label       String?
+  attributes  Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  workspace   HospitalWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  outgoing    IntelligenceGraphRelationship[] @relation("GraphRelationshipFrom")
+  incoming    IntelligenceGraphRelationship[] @relation("GraphRelationshipTo")
+
+  @@unique([workspaceId, entityType, entityId])
+  @@index([workspaceId, entityType])
+}
+
+model IntelligenceGraphRelationship {
+  id           String   @id @default(uuid())
+  workspaceId  String
+  fromEntityId String
+  toEntityId   String
+  relationshipType String
+  strength     Float
+  confidence   Float
+  evidence     Json
+  metadata     Json
+  startsAt     DateTime?
+  endsAt       DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  workspace    HospitalWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  fromEntity   IntelligenceGraphEntity @relation("GraphRelationshipFrom", fields: [fromEntityId], references: [id], onDelete: Cascade)
+  toEntity     IntelligenceGraphEntity @relation("GraphRelationshipTo", fields: [toEntityId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, relationshipType])
+  @@index([fromEntityId, relationshipType])
+  @@index([toEntityId, relationshipType])
+}
+
+model IntelligenceSignal {
+  id             String   @id
+  workspaceId    String
+  signalType     String
+  direction      String
+  severity       String
+  summary        String
+  sourceEventIds Json
+  relatedEntities Json
+  temporalWindow Json
+  scores         Json
+  evidence       Json
+  propagation    Json
+  graphLinks     Json
+  correlationKey String
+  idempotencyKey String
+  detectedAt     DateTime
+  metadata       Json
+  createdAt      DateTime @default(now())
+  workspace      HospitalWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, idempotencyKey])
+  @@index([workspaceId, signalType, detectedAt])
+  @@index([workspaceId, correlationKey, detectedAt])
+}
+
+model IntelligencePriority {
+  id                  String   @id
+  workspaceId          String
+  kind                String
+  title               String
+  reason              String
+  urgency             Float
+  confidence          Float
+  expectedImpact      Float
+  executionComplexity Float
+  strategicImportance Float
+  relatedEntities     Json
+  supportingSignals   Json
+  causalFindings      Json
+  evidence            Json
+  recommendedActions  Json
+  createdAt           DateTime
+  workspace           HospitalWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, strategicImportance, urgency])
+  @@index([workspaceId, kind, createdAt])
+}
+
+model IntelligenceCausalChain {
+  id             String   @id
+  workspaceId    String
+  rootCause      Json
+  outcome        Json
+  links          Json
+  summary        String
+  confidence     Float
+  temporalWindow Json
+  generatedAt    DateTime
+  workspace      HospitalWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, confidence, generatedAt])
+}
+
+model RecommendationProvenance {
+  id                    String   @id
+  workspaceId            String
+  title                 String
+  rationale             String
+  supportingSignals     Json
+  graphEvidence         Json
+  causalEvidence        Json
+  historicalComparisons Json
+  expectedOutcome       String
+  confidence            Float
+  executionSteps        Json
+  relatedPriorityIds    Json
+  downstreamRisks       Json
+  downstreamOpportunities Json
+  createdAt             DateTime
+  workspace             HospitalWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  outcomeTracking       RecommendationOutcomeTracking?
+
+  @@index([workspaceId, confidence, createdAt])
+}
+
+model IntelligenceTrace {
+  traceId           String   @id
+  workspaceId        String
+  rootEventId        String
+  signalIds          Json
+  priorityIds        Json
+  recommendationIds  Json
+  causalChainIds     Json
+  startedAt          DateTime
+  updatedAt          DateTime
+  workspace          HospitalWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  auditLogs          ReasoningAuditLog[]
+
+  @@index([workspaceId, rootEventId])
+  @@index([workspaceId, updatedAt])
+}
+
+model ReasoningAuditLog {
+  id          String   @id
+  workspaceId String
+  traceId     String
+  stage       String
+  inputRefs   Json
+  outputRefs  Json
+  decision    String
+  confidence  Float
+  createdAt   DateTime
+  workspace   HospitalWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  trace       IntelligenceTrace @relation(fields: [traceId], references: [traceId], onDelete: Cascade)
+
+  @@index([workspaceId, stage, createdAt])
+  @@index([traceId, createdAt])
+}
+
+model RecommendationOutcomeTracking {
+  id                   String   @id @default(uuid())
+  workspaceId           String
+  recommendationId      String   @unique
+  targetKpis            Json
+  baseline              Json
+  expectedOutcome       String
+  measurementWindow     Json
+  effectivenessHooks    Json
+  confidenceEvolution   Json
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  workspace             HospitalWorkspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  recommendation        RecommendationProvenance @relation(fields: [recommendationId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, updatedAt])
+}
+
+enum RequestStatus {
+  NEW
+  REVIEWING
+  APPROVED
+  SETUP
+  LIVE
+}
+
+enum WorkspaceStatus {
+  CREATING
+  ACTIVE
+  PAUSED
+}
+
+enum IntegrationConfigStatus {
+  PENDING
+  CONNECTED
+  NEEDS_ATTENTION
+  DISABLED
+}
+
+enum ContentPlatform {
+  INSTAGRAM
+  FACEBOOK
+  BLOG
+  LINKEDIN
+}
+
+enum ContentStatus {
+  DRAFT
+  APPROVED
+  PUBLISHED
+}
+
+enum ContentCalendarType {
+  REEL
+  POST
+  CAROUSEL
+  STORY
+  YOUTUBE_SHORT
+  BLOG
+}
+
+enum ContentCalendarStatus {
+  IDEA
+  PLANNED
+  SCRIPT_READY
+  IN_PRODUCTION
+  READY_TO_POST
+  PUBLISHED
+  CANCELLED
+}
+
+enum ContentCalendarPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ContentCalendarCategory {
+  EDUCATIONAL
+  AWARENESS
+  PROMOTIONAL
+  PATIENT_STORY
+  DOCTOR_BRANDING
+  SEASONAL
+  SPECIAL_DAY
+  TRENDING
+}
+
+enum ContentScriptType {
+  REEL
+  CAROUSEL
+  POST
+  SHORT_VIDEO
+  ADVERTISEMENT
+}
+
+enum ContentScriptStatus {
+  DRAFT
+  APPROVED
+  ARCHIVED
+}
+
+enum UserRole {
+  ADMIN
+  DOCTOR
+  PRODUCTION
+  STAFF
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  REVOKED
+}

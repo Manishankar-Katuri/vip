@@ -1,0 +1,29 @@
+{
+  "name": "@vip/control-plane",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./types": "./types/index.ts",
+    "./interfaces": "./interfaces/index.ts",
+    "./auth": "./auth/index.ts",
+    "./security": "./security/index.ts",
+    "./usage": "./usage/index.ts",
+    "./provisioning": "./provisioning/index.ts",
+    "./validation": "./validation/index.ts",
+    "./persistence": "./persistence/index.ts",
+    "./examples": "./examples/workspace-onboarding.ts"
+  },
+  "scripts": {
+    "test": "tsc -p tsconfig.test.json --outDir node_modules/.cache/vip-control-plane-tests && node --test node_modules/.cache/vip-control-plane-tests/tests/control-plane.test.js"
+  },
+  "dependencies": {
+    "@vip/database": "file:../database"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}

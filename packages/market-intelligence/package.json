@@ -1,0 +1,29 @@
+{
+  "name": "@vip/market-intelligence",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./demographics": "./demographics/index.ts",
+    "./trends": "./trends/index.ts",
+    "./competitors": "./competitors/index.ts",
+    "./seasonal": "./seasonal/index.ts",
+    "./geo": "./geo/index.ts",
+    "./healthcare-signals": "./healthcare-signals/index.ts",
+    "./social-trends": "./social-trends/index.ts",
+    "./providers": "./providers/index.ts"
+  },
+  "scripts": {
+    "test": "tsc -p tsconfig.test.json --outDir node_modules/.cache/vip-market-intelligence-tests && node --test node_modules/.cache/vip-market-intelligence-tests/persistence/persist-market-context-snapshot.test.js node_modules/.cache/vip-market-intelligence-tests/competitors/competitor-analysis-report.test.js"
+  },
+  "dependencies": {
+    "@vip/database": "file:../database",
+    "@vip/shared": "file:../shared"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "typescript": "^5"
+  }
+}
