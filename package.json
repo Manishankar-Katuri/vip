@@ -1,0 +1,15 @@
+{
+  "name": "vip",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm --prefix apps/web run build",
+    "vercel-build": "npm --prefix apps/web run build"
+  },
+  "dependencies": {
+    "next": "16.2.6"
+  }
+}

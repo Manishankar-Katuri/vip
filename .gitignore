@@ -46,3 +46,5 @@ Thumbs.db
 
 # Nested repo backups created while preparing monorepo demo commits
 **/.git.backup*/
+
+.vercel
