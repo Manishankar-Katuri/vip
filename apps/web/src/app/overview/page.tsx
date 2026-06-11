@@ -1,7 +1,3 @@
-import { OwnerCommandCenter } from "@/components/owner/owner-command-center";
+import DashboardPage from "../dashboard/page";
 
-export const dynamic = "force-dynamic";
-
-export default function OverviewPage() {
-  return <OwnerCommandCenter />;
-}
+export default DashboardPage;
