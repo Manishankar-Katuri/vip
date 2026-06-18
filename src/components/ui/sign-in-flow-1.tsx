@@ -14,22 +14,6 @@ const supabaseAnonKey = __SUPABASE_ANON_KEY__ || import.meta.env.VITE_SUPABASE_A
 const hasSupabaseConfig = Boolean(supabaseUrl && supabaseAnonKey)
 const supabase = hasSupabaseConfig ? createClient(supabaseUrl, supabaseAnonKey) : null
 
-const getSignInErrorMessage = () => {
-  if (typeof window === 'undefined') return ''
-
-  if (window.location.hash.includes('error_description=')) {
-    const params = new URLSearchParams(window.location.hash.slice(1))
-    return params.get('error_description') || 'The sign-in link could not be verified.'
-  }
-
-  if (window.location.search.includes('error_description=')) {
-    const params = new URLSearchParams(window.location.search)
-    return params.get('error_description') || 'The sign-in link could not be verified.'
-  }
-
-  return ''
-}
-
 type Uniforms = {
   [key: string]: {
     value: number[] | number[][] | number
@@ -325,10 +309,11 @@ const Shader: React.FC<ShaderProps> = ({ source, uniforms, maxFps = 60 }) => {
 export const SignInPage = ({ className }: SignInPageProps) => {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
-  const [step, setStep] = useState<'email' | 'sent' | 'success'>('email')
+  const [password, setPassword] = useState('')
+  const [step, setStep] = useState<'email' | 'success'>('email')
   const [initialCanvasVisible, setInitialCanvasVisible] = useState(true)
   const [reverseCanvasVisible, setReverseCanvasVisible] = useState(false)
-  const [message, setMessage] = useState(getSignInErrorMessage)
+  const [message, setMessage] = useState('')
   const [loading, setLoading] = useState(false)
   const [clientAccessLabel, setClientAccessLabel] = useState('')
 
@@ -365,46 +350,37 @@ export const SignInPage = ({ className }: SignInPageProps) => {
     return true
   }
 
-  const sendMagicLink = async () => {
+  const handlePasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
     setMessage('')
 
     if (!supabase) {
       setMessage('VIP sign-in is not configured yet.')
-      return false
+      return
     }
 
     const normalizedEmail = email.trim().toLowerCase()
-    if (!normalizedEmail) return false
+    if (!normalizedEmail || !password) return
 
     setLoading(true)
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabase.auth.signInWithPassword({
       email: normalizedEmail,
-      options: {
-        shouldCreateUser: false,
-        emailRedirectTo: `${window.location.origin}/tools/vip`,
-      },
+      password,
     })
-    setLoading(false)
 
     if (error) {
-      setMessage('This email is not authorized for VIP access.')
-      return false
+      setLoading(false)
+      setMessage('Invalid email or password, or this email is not authorized for VIP access.')
+      return
     }
 
-    setStep('sent')
-    setMessage('')
-    return true
-  }
-
-  const handleEmailSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    void sendMagicLink()
-  }
-
-  const handleResendLink = () => {
-    void sendMagicLink().then((sent) => {
-      if (sent) setMessage('A new sign-in link has been sent.')
-    })
+    const allowed = await validateAccess(supabase)
+    setLoading(false)
+    if (allowed) {
+      setInitialCanvasVisible(false)
+      setReverseCanvasVisible(false)
+      setStep('success')
+    }
   }
 
   useEffect(() => {
@@ -427,36 +403,6 @@ export const SignInPage = ({ className }: SignInPageProps) => {
 
     return () => subscription.unsubscribe()
   }, [])
-
-  useEffect(() => {
-    if (window.location.hash.includes('error_description=')) {
-      window.history.replaceState({}, document.title, window.location.pathname)
-    } else if (window.location.search.includes('error_description=')) {
-      window.history.replaceState({}, document.title, window.location.pathname)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (!supabase) return
-
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (!data.session) return
-
-      setLoading(true)
-      const allowed = await validateAccess(supabase)
-      setLoading(false)
-      if (allowed) {
-        setInitialCanvasVisible(false)
-        setStep('success')
-      }
-    })
-  }, [])
-
-  const handleBackClick = () => {
-    setStep('email')
-    setReverseCanvasVisible(false)
-    setInitialCanvasVisible(true)
-  }
 
   return (
     <div className={cn('flex w-[100%] flex-col min-h-screen bg-black relative', className)}>
@@ -516,106 +462,38 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                     </div>
 
                     <div className="space-y-4">
-                      <button
-                        className="backdrop-blur-[2px] w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-full py-3 px-4 transition-colors"
-                        type="button"
-                      >
-                        <span className="text-lg">G</span>
-                        <span>Sign in with Google</span>
-                      </button>
-
-                      <div className="flex items-center gap-4">
-                        <div className="h-px bg-white/10 flex-1" />
-                        <span className="text-white/40 text-sm">or</span>
-                        <div className="h-px bg-white/10 flex-1" />
-                      </div>
-
-                      <form onSubmit={handleEmailSubmit}>
-                        <div className="relative">
+                      <form onSubmit={handlePasswordSubmit} className="space-y-3">
+                        <div>
                           <input
                             type="email"
-                            placeholder="info@gmail.com"
+                            placeholder="Email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             className="w-full backdrop-blur-[1px] text-white border-1 border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
                             required
                           />
+                        </div>
+                        <div>
+                          <input
+                            type="password"
+                            placeholder="Password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="w-full backdrop-blur-[1px] text-white border-1 border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
+                            required
+                          />
+                        </div>
+                        <div className="pt-1">
                           <button
                             type="submit"
                             disabled={loading}
-                            className="absolute right-1.5 top-1.5 text-white w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors group overflow-hidden"
-                            aria-label="Continue with email"
+                            className="w-full rounded-full bg-white text-black font-medium py-3 hover:bg-white/90 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            <span className="relative w-full h-full block overflow-hidden">
-                              <span className="absolute inset-0 flex items-center justify-center transition-transform duration-300 group-hover:translate-x-full">
-                                -&gt;
-                              </span>
-                              <span className="absolute inset-0 flex items-center justify-center transition-transform duration-300 -translate-x-full group-hover:translate-x-0">
-                                -&gt;
-                              </span>
-                            </span>
+                            {loading ? 'Signing in...' : 'Sign in to VIP'}
                           </button>
                         </div>
                       </form>
                       {message && <p className="text-sm text-white/60">{message}</p>}
-                    </div>
-
-                  </motion.div>
-                ) : step === 'sent' ? (
-                  <motion.div
-                    key="sent-step"
-                    initial={{ opacity: 0, x: 100 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: 100 }}
-                    transition={{ duration: 0.4, ease: 'easeOut' }}
-                    className="space-y-6 text-center"
-                  >
-                    <div className="space-y-1">
-                      <h1 className="text-[2.5rem] font-bold leading-[1.1] tracking-tight text-white">Check your email</h1>
-                      <p className="text-[1.25rem] text-white/50 font-light">Open the VIP sign-in link to continue</p>
-                    </div>
-                    {message && <p className="text-sm text-white/60">{message}</p>}
-
-                    <div className="w-full">
-                      <div className="relative rounded-[2rem] py-5 px-6 border border-white/10 bg-white/[0.03] text-center">
-                        <p className="text-sm leading-6 text-white/55">
-                          We sent a secure link to <span className="text-white/80">{email}</span>. If it is not in your inbox,
-                          check spam or promotions.
-                        </p>
-                      </div>
-                    </div>
-
-                    <div>
-                      <motion.button
-                        type="button"
-                        onClick={handleResendLink}
-                        disabled={loading}
-                        className="text-white/50 hover:text-white/70 transition-colors cursor-pointer text-sm disabled:cursor-not-allowed disabled:opacity-50"
-                        whileHover={{ scale: 1.02 }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        {loading ? 'Sending...' : 'Resend sign-in link'}
-                      </motion.button>
-                    </div>
-
-                    <div className="flex w-full gap-3">
-                      <motion.button
-                        onClick={handleBackClick}
-                        className="rounded-full bg-white text-black font-medium px-8 py-3 hover:bg-white/90 transition-colors w-[30%]"
-                        whileHover={{ scale: 1.02 }}
-                        whileTap={{ scale: 0.98 }}
-                        transition={{ duration: 0.2 }}
-                      >
-                        Back
-                      </motion.button>
-                      <motion.button
-                        type="button"
-                        onClick={handleResendLink}
-                        className="flex-1 rounded-full font-medium py-3 border transition-all duration-300 bg-[#111] text-white/70 border-white/10 hover:bg-white/10"
-                        disabled={loading}
-                      >
-                        {loading ? 'Sending...' : 'Send again'}
-                      </motion.button>
                     </div>
 
                   </motion.div>
