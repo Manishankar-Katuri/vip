@@ -370,7 +370,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
 
     if (error) {
       setLoading(false)
-      setMessage('Invalid email or password, or this email is not authorized for VIP access.')
+      setMessage('Could not sign in. Check the email and password set for this Supabase Auth user.')
       return
     }
 
@@ -444,7 +444,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
       <div className="relative z-10 flex flex-col flex-1">
         <div className="flex flex-1 flex-col lg:flex-row">
           <div className="flex-1 flex flex-col justify-center items-center">
-            <div className="w-full mt-[150px] max-w-sm">
+            <div className="w-full max-w-[420px] px-6 text-center">
               <AnimatePresence mode="wait">
                 {step === 'email' ? (
                   <motion.div
@@ -455,31 +455,41 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                     transition={{ duration: 0.4, ease: 'easeOut' }}
                     className="space-y-6 text-center"
                   >
-                    <div className="space-y-1">
+                    <div className="space-y-2 text-center">
                       <h1 className="text-[2.5rem] font-bold leading-[1.1] tracking-tight text-white">Welcome to VIP</h1>
                       <p className="text-[1.8rem] text-white/70 font-light">Vertical Intelligence Platform</p>
                       <p className="pt-3 text-sm text-white/45">Access is restricted to invited Antaryami AI users.</p>
                     </div>
 
-                    <div className="space-y-4">
-                      <form onSubmit={handlePasswordSubmit} className="space-y-3">
-                        <div>
+                    <div className="space-y-4 text-center">
+                      <form onSubmit={handlePasswordSubmit} className="mx-auto w-full space-y-3">
+                        <div className="space-y-2 text-center">
+                          <label className="block text-xs font-medium uppercase tracking-[0.14em] text-white/40" htmlFor="vip-email">
+                            Email
+                          </label>
                           <input
+                            id="vip-email"
                             type="email"
                             placeholder="Email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full backdrop-blur-[1px] text-white border-1 border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
+                            autoComplete="email"
+                            className="block w-full rounded-full border border-white/10 bg-white/[0.06] px-4 py-3 text-center text-white placeholder:text-white/35 backdrop-blur-[1px] focus:border-white/30 focus:outline-none"
                             required
                           />
                         </div>
-                        <div>
+                        <div className="space-y-2 text-center">
+                          <label className="block text-xs font-medium uppercase tracking-[0.14em] text-white/40" htmlFor="vip-password">
+                            Password
+                          </label>
                           <input
+                            id="vip-password"
                             type="password"
                             placeholder="Password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full backdrop-blur-[1px] text-white border-1 border-white/10 rounded-full py-3 px-4 focus:outline-none focus:border focus:border-white/30 text-center"
+                            autoComplete="current-password"
+                            className="block w-full rounded-full border border-white/10 bg-white/[0.06] px-4 py-3 text-center text-white placeholder:text-white/35 backdrop-blur-[1px] focus:border-white/30 focus:outline-none"
                             required
                           />
                         </div>
