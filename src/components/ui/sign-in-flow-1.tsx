@@ -1,8 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { useNavigate } from 'react-router-dom'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { cn } from '@/lib/utils'
+
+declare const __SUPABASE_URL__: string | undefined
+declare const __SUPABASE_ANON_KEY__: string | undefined
+
+const supabaseUrl = __SUPABASE_URL__ || import.meta.env.VITE_SUPABASE_URL || ''
+const supabaseAnonKey = __SUPABASE_ANON_KEY__ || import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+const hasSupabaseConfig = Boolean(supabaseUrl && supabaseAnonKey)
+const supabase = hasSupabaseConfig ? createClient(supabaseUrl, supabaseAnonKey) : null
 
 type Uniforms = {
   [key: string]: {
@@ -297,19 +307,96 @@ const Shader: React.FC<ShaderProps> = ({ source, uniforms, maxFps = 60 }) => {
 }
 
 export const SignInPage = ({ className }: SignInPageProps) => {
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [step, setStep] = useState<'email' | 'code' | 'success'>('email')
   const [code, setCode] = useState(['', '', '', '', '', ''])
   const codeInputRefs = useRef<(HTMLInputElement | null)[]>([])
   const [initialCanvasVisible, setInitialCanvasVisible] = useState(true)
   const [reverseCanvasVisible, setReverseCanvasVisible] = useState(false)
+  const [message, setMessage] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [clientAccessLabel, setClientAccessLabel] = useState('')
+
+  const validateAccess = async (client: SupabaseClient) => {
+    const { data: allowed, error: allowedError } = await client
+      .from('allowed_users')
+      .select('role, active')
+      .maybeSingle()
+
+    if (allowedError || !allowed || !allowed.active) {
+      await client.auth.signOut()
+      setMessage('This email is not authorized for VIP access.')
+      setStep('email')
+      setCode(['', '', '', '', '', ''])
+      setReverseCanvasVisible(false)
+      setInitialCanvasVisible(true)
+      return false
+    }
+
+    const { data: mappings, error: mappingError } = await client
+      .from('client_users')
+      .select('role, clients(client_name, client_slug)')
+      .limit(1)
+
+    if (mappingError || !mappings || mappings.length === 0) {
+      setMessage('Your account is authorized but no client access has been assigned.')
+      return false
+    }
+
+    const mapping = mappings[0] as {
+      clients?: { client_name?: string | null; client_slug?: string | null } | null
+    }
+    setClientAccessLabel(mapping.clients?.client_name || mapping.clients?.client_slug || 'VIP')
+    setMessage('')
+    return true
+  }
 
   const handleEmailSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    setMessage('')
+
+    if (!supabase) {
+      setMessage('VIP sign-in is not configured yet.')
+      return
+    }
+
     if (email) {
-      setStep('code')
+      setLoading(true)
+      supabase.auth
+        .signInWithOtp({
+          email: email.trim().toLowerCase(),
+          options: {
+            shouldCreateUser: false,
+            emailRedirectTo: `${window.location.origin}/tools/vip`,
+          },
+        })
+        .then(({ error }) => {
+          if (error) {
+            setMessage('This email is not authorized for VIP access.')
+            return
+          }
+          setStep('code')
+        })
+        .finally(() => setLoading(false))
     }
   }
+
+  useEffect(() => {
+    if (!supabase) return
+
+    supabase.auth.getSession().then(async ({ data }) => {
+      if (!data.session) return
+
+      setLoading(true)
+      const allowed = await validateAccess(supabase)
+      setLoading(false)
+      if (allowed) {
+        setInitialCanvasVisible(false)
+        setStep('success')
+      }
+    })
+  }, [])
 
   useEffect(() => {
     if (step === 'code') {
@@ -338,8 +425,33 @@ export const SignInPage = ({ className }: SignInPageProps) => {
             setInitialCanvasVisible(false)
           }, 50)
 
-          setTimeout(() => {
-            setStep('success')
+          setTimeout(async () => {
+            if (!supabase) {
+              setMessage('VIP sign-in is not configured yet.')
+              setStep('email')
+              return
+            }
+
+            setLoading(true)
+            const { error } = await supabase.auth.verifyOtp({
+              email: email.trim().toLowerCase(),
+              token: newCode.join(''),
+              type: 'email',
+            })
+
+            if (error) {
+              setLoading(false)
+              setMessage('Invalid or expired sign-in code.')
+              setReverseCanvasVisible(false)
+              setInitialCanvasVisible(true)
+              return
+            }
+
+            const allowed = await validateAccess(supabase)
+            setLoading(false)
+            if (allowed) {
+              setStep('success')
+            }
           }, 2000)
         }
       }
@@ -413,10 +525,14 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                     <div className="space-y-1">
                       <h1 className="text-[2.5rem] font-bold leading-[1.1] tracking-tight text-white">Welcome to VIP</h1>
                       <p className="text-[1.8rem] text-white/70 font-light">Vertical Intelligence Platform</p>
+                      <p className="pt-3 text-sm text-white/45">Access is restricted to invited Antaryami AI users.</p>
                     </div>
 
                     <div className="space-y-4">
-                      <button className="backdrop-blur-[2px] w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-full py-3 px-4 transition-colors">
+                      <button
+                        className="backdrop-blur-[2px] w-full flex items-center justify-center gap-2 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-full py-3 px-4 transition-colors"
+                        type="button"
+                      >
                         <span className="text-lg">G</span>
                         <span>Sign in with Google</span>
                       </button>
@@ -439,6 +555,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                           />
                           <button
                             type="submit"
+                            disabled={loading}
                             className="absolute right-1.5 top-1.5 text-white w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-colors group overflow-hidden"
                             aria-label="Continue with email"
                           >
@@ -453,6 +570,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                           </button>
                         </div>
                       </form>
+                      {message && <p className="text-sm text-white/60">{message}</p>}
                     </div>
 
                   </motion.div>
@@ -469,6 +587,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                       <h1 className="text-[2.5rem] font-bold leading-[1.1] tracking-tight text-white">We sent you a code</h1>
                       <p className="text-[1.25rem] text-white/50 font-light">Please enter it</p>
                     </div>
+                    {message && <p className="text-sm text-white/60">{message}</p>}
 
                     <div className="w-full">
                       <div className="relative rounded-full py-4 px-5 border border-white/10 bg-transparent">
@@ -525,9 +644,9 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                             ? 'bg-white text-black border-transparent hover:bg-white/90 cursor-pointer'
                             : 'bg-[#111] text-white/50 border-white/10 cursor-not-allowed'
                         }`}
-                        disabled={!code.every((d) => d !== '')}
+                        disabled={!code.every((d) => d !== '') || loading}
                       >
-                        Continue
+                        {loading ? 'Checking...' : 'Continue'}
                       </motion.button>
                     </div>
 
@@ -542,7 +661,9 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                   >
                     <div className="space-y-1">
                       <h1 className="text-[2.5rem] font-bold leading-[1.1] tracking-tight text-white">You're in!</h1>
-                      <p className="text-[1.25rem] text-white/50 font-light">Welcome</p>
+                      <p className="text-[1.25rem] text-white/50 font-light">
+                        {clientAccessLabel ? `${clientAccessLabel} access ready` : 'Welcome'}
+                      </p>
                     </div>
 
                     <motion.div
@@ -566,6 +687,7 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 1 }}
+                      onClick={() => navigate('/dashboard')}
                       className="w-full rounded-full bg-white text-black font-medium py-3 hover:bg-white/90 transition-colors"
                     >
                       Continue to VIP
