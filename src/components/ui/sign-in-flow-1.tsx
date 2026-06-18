@@ -14,6 +14,22 @@ const supabaseAnonKey = __SUPABASE_ANON_KEY__ || import.meta.env.VITE_SUPABASE_A
 const hasSupabaseConfig = Boolean(supabaseUrl && supabaseAnonKey)
 const supabase = hasSupabaseConfig ? createClient(supabaseUrl, supabaseAnonKey) : null
 
+const getSignInErrorMessage = () => {
+  if (typeof window === 'undefined') return ''
+
+  if (window.location.hash.includes('error_description=')) {
+    const params = new URLSearchParams(window.location.hash.slice(1))
+    return params.get('error_description') || 'The sign-in link could not be verified.'
+  }
+
+  if (window.location.search.includes('error_description=')) {
+    const params = new URLSearchParams(window.location.search)
+    return params.get('error_description') || 'The sign-in link could not be verified.'
+  }
+
+  return ''
+}
+
 type Uniforms = {
   [key: string]: {
     value: number[] | number[][] | number
@@ -309,12 +325,10 @@ const Shader: React.FC<ShaderProps> = ({ source, uniforms, maxFps = 60 }) => {
 export const SignInPage = ({ className }: SignInPageProps) => {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
-  const [step, setStep] = useState<'email' | 'code' | 'success'>('email')
-  const [code, setCode] = useState(['', '', '', '', '', ''])
-  const codeInputRefs = useRef<(HTMLInputElement | null)[]>([])
+  const [step, setStep] = useState<'email' | 'sent' | 'success'>('email')
   const [initialCanvasVisible, setInitialCanvasVisible] = useState(true)
   const [reverseCanvasVisible, setReverseCanvasVisible] = useState(false)
-  const [message, setMessage] = useState('')
+  const [message, setMessage] = useState(getSignInErrorMessage)
   const [loading, setLoading] = useState(false)
   const [clientAccessLabel, setClientAccessLabel] = useState('')
 
@@ -328,7 +342,6 @@ export const SignInPage = ({ className }: SignInPageProps) => {
       await client.auth.signOut()
       setMessage('This email is not authorized for VIP access.')
       setStep('email')
-      setCode(['', '', '', '', '', ''])
       setReverseCanvasVisible(false)
       setInitialCanvasVisible(true)
       return false
@@ -352,35 +365,76 @@ export const SignInPage = ({ className }: SignInPageProps) => {
     return true
   }
 
-  const handleEmailSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
+  const sendMagicLink = async () => {
     setMessage('')
 
     if (!supabase) {
       setMessage('VIP sign-in is not configured yet.')
-      return
+      return false
     }
 
-    if (email) {
-      setLoading(true)
-      supabase.auth
-        .signInWithOtp({
-          email: email.trim().toLowerCase(),
-          options: {
-            shouldCreateUser: false,
-            emailRedirectTo: `${window.location.origin}/tools/vip`,
-          },
-        })
-        .then(({ error }) => {
-          if (error) {
-            setMessage('This email is not authorized for VIP access.')
-            return
-          }
-          setStep('code')
-        })
-        .finally(() => setLoading(false))
+    const normalizedEmail = email.trim().toLowerCase()
+    if (!normalizedEmail) return false
+
+    setLoading(true)
+    const { error } = await supabase.auth.signInWithOtp({
+      email: normalizedEmail,
+      options: {
+        shouldCreateUser: false,
+        emailRedirectTo: `${window.location.origin}/tools/vip`,
+      },
+    })
+    setLoading(false)
+
+    if (error) {
+      setMessage('This email is not authorized for VIP access.')
+      return false
     }
+
+    setStep('sent')
+    setMessage('')
+    return true
   }
+
+  const handleEmailSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    void sendMagicLink()
+  }
+
+  const handleResendLink = () => {
+    void sendMagicLink().then((sent) => {
+      if (sent) setMessage('A new sign-in link has been sent.')
+    })
+  }
+
+  useEffect(() => {
+    if (!supabase) return
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
+        setLoading(true)
+        const allowed = await validateAccess(supabase)
+        setLoading(false)
+        if (allowed) {
+          setInitialCanvasVisible(false)
+          setReverseCanvasVisible(false)
+          setStep('success')
+        }
+      }
+    })
+
+    return () => subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    if (window.location.hash.includes('error_description=')) {
+      window.history.replaceState({}, document.title, window.location.pathname)
+    } else if (window.location.search.includes('error_description=')) {
+      window.history.replaceState({}, document.title, window.location.pathname)
+    }
+  }, [])
 
   useEffect(() => {
     if (!supabase) return
@@ -398,75 +452,8 @@ export const SignInPage = ({ className }: SignInPageProps) => {
     })
   }, [])
 
-  useEffect(() => {
-    if (step === 'code') {
-      setTimeout(() => {
-        codeInputRefs.current[0]?.focus()
-      }, 500)
-    }
-  }, [step])
-
-  const handleCodeChange = (index: number, value: string) => {
-    if (value.length <= 1) {
-      const newCode = [...code]
-      newCode[index] = value
-      setCode(newCode)
-
-      if (value && index < 5) {
-        codeInputRefs.current[index + 1]?.focus()
-      }
-
-      if (index === 5 && value) {
-        const isComplete = newCode.every((digit) => digit.length === 1)
-        if (isComplete) {
-          setReverseCanvasVisible(true)
-
-          setTimeout(() => {
-            setInitialCanvasVisible(false)
-          }, 50)
-
-          setTimeout(async () => {
-            if (!supabase) {
-              setMessage('VIP sign-in is not configured yet.')
-              setStep('email')
-              return
-            }
-
-            setLoading(true)
-            const { error } = await supabase.auth.verifyOtp({
-              email: email.trim().toLowerCase(),
-              token: newCode.join(''),
-              type: 'email',
-            })
-
-            if (error) {
-              setLoading(false)
-              setMessage('Invalid or expired sign-in code.')
-              setReverseCanvasVisible(false)
-              setInitialCanvasVisible(true)
-              return
-            }
-
-            const allowed = await validateAccess(supabase)
-            setLoading(false)
-            if (allowed) {
-              setStep('success')
-            }
-          }, 2000)
-        }
-      }
-    }
-  }
-
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !code[index] && index > 0) {
-      codeInputRefs.current[index - 1]?.focus()
-    }
-  }
-
   const handleBackClick = () => {
     setStep('email')
-    setCode(['', '', '', '', '', ''])
     setReverseCanvasVisible(false)
     setInitialCanvasVisible(true)
   }
@@ -574,9 +561,9 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                     </div>
 
                   </motion.div>
-                ) : step === 'code' ? (
+                ) : step === 'sent' ? (
                   <motion.div
-                    key="code-step"
+                    key="sent-step"
                     initial={{ opacity: 0, x: 100 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: 100 }}
@@ -584,48 +571,31 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                     className="space-y-6 text-center"
                   >
                     <div className="space-y-1">
-                      <h1 className="text-[2.5rem] font-bold leading-[1.1] tracking-tight text-white">We sent you a code</h1>
-                      <p className="text-[1.25rem] text-white/50 font-light">Please enter it</p>
+                      <h1 className="text-[2.5rem] font-bold leading-[1.1] tracking-tight text-white">Check your email</h1>
+                      <p className="text-[1.25rem] text-white/50 font-light">Open the VIP sign-in link to continue</p>
                     </div>
                     {message && <p className="text-sm text-white/60">{message}</p>}
 
                     <div className="w-full">
-                      <div className="relative rounded-full py-4 px-5 border border-white/10 bg-transparent">
-                        <div className="flex items-center justify-center">
-                          {code.map((digit, i) => (
-                            <div key={i} className="flex items-center">
-                              <div className="relative">
-                                <input
-                                  ref={(el) => {
-                                    codeInputRefs.current[i] = el
-                                  }}
-                                  type="text"
-                                  inputMode="numeric"
-                                  pattern="[0-9]*"
-                                  maxLength={1}
-                                  value={digit}
-                                  onChange={(e) => handleCodeChange(i, e.target.value)}
-                                  onKeyDown={(e) => handleKeyDown(i, e)}
-                                  className="w-8 text-center text-xl bg-transparent text-white border-none focus:outline-none focus:ring-0 appearance-none"
-                                  style={{ caretColor: 'transparent' }}
-                                />
-                                {!digit && (
-                                  <div className="absolute top-0 left-0 w-full h-full flex items-center justify-center pointer-events-none">
-                                    <span className="text-xl text-white">0</span>
-                                  </div>
-                                )}
-                              </div>
-                              {i < 5 && <span className="text-white/20 text-xl">|</span>}
-                            </div>
-                          ))}
-                        </div>
+                      <div className="relative rounded-[2rem] py-5 px-6 border border-white/10 bg-white/[0.03] text-center">
+                        <p className="text-sm leading-6 text-white/55">
+                          We sent a secure link to <span className="text-white/80">{email}</span>. If it is not in your inbox,
+                          check spam or promotions.
+                        </p>
                       </div>
                     </div>
 
                     <div>
-                      <motion.p className="text-white/50 hover:text-white/70 transition-colors cursor-pointer text-sm" whileHover={{ scale: 1.02 }} transition={{ duration: 0.2 }}>
-                        Resend code
-                      </motion.p>
+                      <motion.button
+                        type="button"
+                        onClick={handleResendLink}
+                        disabled={loading}
+                        className="text-white/50 hover:text-white/70 transition-colors cursor-pointer text-sm disabled:cursor-not-allowed disabled:opacity-50"
+                        whileHover={{ scale: 1.02 }}
+                        transition={{ duration: 0.2 }}
+                      >
+                        {loading ? 'Sending...' : 'Resend sign-in link'}
+                      </motion.button>
                     </div>
 
                     <div className="flex w-full gap-3">
@@ -639,14 +609,12 @@ export const SignInPage = ({ className }: SignInPageProps) => {
                         Back
                       </motion.button>
                       <motion.button
-                        className={`flex-1 rounded-full font-medium py-3 border transition-all duration-300 ${
-                          code.every((d) => d !== '')
-                            ? 'bg-white text-black border-transparent hover:bg-white/90 cursor-pointer'
-                            : 'bg-[#111] text-white/50 border-white/10 cursor-not-allowed'
-                        }`}
-                        disabled={!code.every((d) => d !== '') || loading}
+                        type="button"
+                        onClick={handleResendLink}
+                        className="flex-1 rounded-full font-medium py-3 border transition-all duration-300 bg-[#111] text-white/70 border-white/10 hover:bg-white/10"
+                        disabled={loading}
                       >
-                        {loading ? 'Checking...' : 'Continue'}
+                        {loading ? 'Sending...' : 'Send again'}
                       </motion.button>
                     </div>
 
