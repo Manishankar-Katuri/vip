@@ -1,7 +1,7 @@
 .app-shell {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 272px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   background: #eef4f3;
 }
 
@@ -616,6 +616,19 @@
   justify-content: space-between;
   gap: 18px;
   align-items: center;
+}
+
+.topbar-brand {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-compact {
+  min-height: auto;
+  padding: 0;
+  border-bottom: 0;
 }
 
 .topbar h1 {
@@ -1962,7 +1975,7 @@ button:disabled {
 }
 
 .app-shell {
-  grid-template-columns: 256px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   background: var(--dash-bg);
   color: var(--dash-text);
 }
@@ -2597,7 +2610,7 @@ tbody tr:hover td {
 
 @media (max-width: 1100px) {
   .app-shell {
-    grid-template-columns: 232px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .page-heading {

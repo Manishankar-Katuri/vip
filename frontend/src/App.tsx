@@ -3,7 +3,6 @@ import type { ComponentType, ReactNode } from 'react'
 import {
   BrowserRouter,
   Link,
-  NavLink,
   Navigate,
   Route,
   Routes,
@@ -44,8 +43,10 @@ import {
 import { format, parseISO } from 'date-fns'
 import { LandingPage } from './pages/LandingPage'
 import { ToolsPage } from './pages/ToolsPage'
+import { Button } from './components/ui/button'
 import { SignInPage } from './components/ui/sign-in-flow-1'
 import { BadgeDelta } from './components/ui/badge-delta'
+import FloatingActionMenu from './components/ui/floating-action-menu'
 import { PointsChart } from './components/ui/points-chart'
 import type { PointsChartDataPoint } from './components/ui/points-chart'
 import { StreakCard } from './components/ui/streak-card'
@@ -518,38 +519,6 @@ function ProtectedShell({ session, children }: { session: Session | null; childr
       }}
     >
       <div className="app-shell">
-        <aside className="sidebar">
-          <Link className="brand" to="/dashboard">
-            <span className="brand-mark">
-              <HeartPulse size={21} />
-            </span>
-            <span>
-              <strong>VIP Social</strong>
-              <small>Intelligence Ops</small>
-            </span>
-          </Link>
-          <nav className="nav-list">
-            {navItems.map((item) => (
-              <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? 'active' : '')}>
-                <item.icon size={18} />
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
-          <nav className="nav-list nav-list-advanced" aria-label="Advanced">
-            <span className="nav-kicker">Advanced</span>
-            {advancedNavItems.map((item) => (
-              <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? 'active' : '')}>
-                <item.icon size={18} />
-                {item.label}
-              </NavLink>
-            ))}
-          </nav>
-          <div className="sidebar-footer">
-            <StatusBadge value={hasSupabaseConfig ? 'RLS reads enabled' : 'env required'} />
-            <small>Aayu Geriatrics context</small>
-          </div>
-        </aside>
         <main className="main-panel">
           <Topbar
             clients={data.clients}
@@ -564,8 +533,24 @@ function ProtectedShell({ session, children }: { session: Session | null; childr
           {data.errors.length > 0 && <ErrorStrip errors={data.errors} />}
           <div className="page-wrap">{children}</div>
         </main>
+        <VipFloatingMenu />
       </div>
     </VipContext.Provider>
+  )
+}
+
+function VipFloatingMenu() {
+  const navigate = useNavigate()
+  const menuItems = [...navItems, ...advancedNavItems]
+
+  return (
+    <FloatingActionMenu
+      options={menuItems.map((item) => ({
+        label: item.label,
+        Icon: <item.icon className="h-4 w-4" />,
+        onClick: () => navigate(item.to),
+      }))}
+    />
   )
 }
 
@@ -881,12 +866,20 @@ function Topbar({
 
   return (
     <header className="topbar">
-      <div>
-        <p className="eyebrow">Healthcare social intelligence</p>
-        <h1>Aayu Geriatrics Command Desk</h1>
+      <div className="topbar-brand">
+        <Link className="brand brand-compact" to="/dashboard" aria-label="Go to dashboard">
+          <span className="brand-mark">
+            <HeartPulse size={19} />
+          </span>
+        </Link>
+        <div>
+          <p className="eyebrow">Healthcare social intelligence</p>
+          <h1>Aayu Geriatrics Command Desk</h1>
+        </div>
       </div>
       <div className="topbar-actions">
-        <select value={selectedClientId} onChange={(event) => onClientChange(event.target.value)} disabled={!clients.length}>
+        <StatusBadge value={hasSupabaseConfig ? 'RLS reads enabled' : 'env required'} />
+        <select className="client-select" value={selectedClientId} onChange={(event) => onClientChange(event.target.value)} disabled={!clients.length}>
           {clients.length ? (
             clients.map((client) => (
               <option key={client.id} value={client.id}>
@@ -897,13 +890,13 @@ function Topbar({
             <option>Aayu Geriatrics setup pending</option>
           )}
         </select>
-        <button className="icon-button" type="button" onClick={onRefresh} aria-label="Refresh data">
+        <Button className="icon-button" size="icon" onClick={onRefresh} aria-label="Refresh data">
           <RefreshCw size={17} className={loading ? 'spin' : ''} />
-        </button>
+        </Button>
         {session && (
-          <button className="icon-button" type="button" onClick={signOut} aria-label="Sign out">
+          <Button className="icon-button" size="icon" onClick={signOut} aria-label="Sign out">
             <LogOut size={17} />
-          </button>
+          </Button>
         )}
       </div>
     </header>
@@ -971,7 +964,9 @@ function Dashboard() {
       <Panel title="Approvals">
         <div className="approval-summary">
           <MetricCard icon={ClipboardCheck} label="Pending approvals" value={String(pendingApprovals)} detail={`${productionReady.length} production-ready item(s).`} tone={pendingApprovals ? 'warning' : 'good'} />
-          <Link className="quiet-action" to="/approvals">Review queue</Link>
+          <Button asChild className="quiet-action">
+            <Link to="/approvals">Review queue</Link>
+          </Button>
         </div>
       </Panel>
     </Page>
@@ -1039,7 +1034,7 @@ function EngineOutputsPage() {
                     <button
                       key={row.engine}
                       type="button"
-                      className={`engine-card ${selectedRow?.engine === row.engine ? 'selected' : ''}`}
+                      className={`engine-card flow-hover-surface ${selectedRow?.engine === row.engine ? 'selected' : ''}`}
                       onClick={() => setSelectedEngine(row.engine)}
                     >
                       <div className="row-between">
@@ -1365,7 +1360,7 @@ function ActionRail() {
   return (
     <div className="action-rail">
       {actions.map((action) => (
-        <button key={action} type="button" disabled title="backend route required">
+        <button key={action} type="button" className="flow-hover-surface" disabled title="backend route required">
           {action}
           <small>backend route required</small>
         </button>
@@ -1484,9 +1479,9 @@ function AnalyticsPage() {
             ['youtube', 'YouTube'],
             ['content', 'Content Performance'],
           ].map(([value, label]) => (
-            <button key={value} type="button" className={tab === value ? 'active' : ''} onClick={() => setTab(value as typeof tab)}>
+            <Button key={value} variant={tab === value ? 'default' : 'ghost'} size="sm" aria-pressed={tab === value} onClick={() => setTab(value as typeof tab)}>
               {label}
-            </button>
+            </Button>
           ))}
         </div>
         <label className="filter-control">
@@ -1679,7 +1674,7 @@ function ControlsPage() {
     <Page title="Manual Controls" subtitle="Backend-safe controls reserved for authenticated server API routes.">
       <div className="control-grid">
         {controls.map((control) => (
-          <button key={control} type="button" className="control-button" disabled title="secure backend route required">
+          <button key={control} type="button" className="control-button flow-hover-surface" disabled title="secure backend route required">
             <PlayCircle size={19} />
             <span>{control}</span>
             <small>config needed</small>
