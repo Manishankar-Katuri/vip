@@ -14,7 +14,18 @@ function getSupabaseForRequest(authorization: string) {
   })
 }
 
-export default async function handler(request: any, response: any) {
+type ApiRequest = {
+  method?: string
+  query: Record<string, string | string[] | undefined>
+  headers: Record<string, string | string[] | undefined>
+}
+
+type ApiResponse = {
+  setHeader: (name: string, value: string) => void
+  status: (statusCode: number) => { json: (body: unknown) => unknown }
+}
+
+export default async function handler(request: ApiRequest, response: ApiResponse) {
   if (request.method !== 'GET') {
     response.setHeader('Allow', 'GET')
     return response.status(405).json({ error: 'Method not allowed' })

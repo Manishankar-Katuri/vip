@@ -12,7 +12,26 @@ function getSupabaseAdmin() {
   return createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false } })
 }
 
-export default async function handler(request: any, response: any) {
+type ApiRequest = {
+  method?: string
+  query: Record<string, string | string[] | undefined>
+  headers: Record<string, string | string[] | undefined>
+  body?: {
+    target_post_date?: string
+    scan_date?: string
+    posted_yesterday?: boolean
+    platforms_posted?: string[]
+    post_count?: number | string
+    scan_status?: string
+  }
+}
+
+type ApiResponse = {
+  setHeader: (name: string, value: string) => void
+  status: (statusCode: number) => { json: (body: unknown) => unknown }
+}
+
+export default async function handler(request: ApiRequest, response: ApiResponse) {
   if (request.method !== 'POST') {
     response.setHeader('Allow', 'POST')
     return response.status(405).json({ error: 'Method not allowed' })
