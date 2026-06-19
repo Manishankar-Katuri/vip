@@ -14,6 +14,8 @@ import { createClient, type Session, type SupabaseClient } from '@supabase/supab
 import {
   AlertTriangle,
   BarChart3,
+  Bookmark,
+  Camera,
   CalendarDays,
   CheckCircle2,
   ClipboardCheck,
@@ -28,10 +30,13 @@ import {
   PlayCircle,
   RefreshCw,
   Search,
+  Share2,
   Settings2,
   ShieldCheck,
   ThumbsUp,
+  TrendingUp,
   Users,
+  Video,
   Workflow,
   XCircle,
 } from 'lucide-react'
@@ -39,6 +44,9 @@ import { format, parseISO } from 'date-fns'
 import { LandingPage } from './pages/LandingPage'
 import { ToolsPage } from './pages/ToolsPage'
 import { SignInPage } from './components/ui/sign-in-flow-1'
+import { BadgeDelta } from './components/ui/badge-delta'
+import { PointsChart } from './components/ui/points-chart'
+import type { PointsChartDataPoint } from './components/ui/points-chart'
 import './App.css'
 
 declare const __SUPABASE_URL__: string | undefined
@@ -115,6 +123,43 @@ type Metric = {
   metric_name: string
   metric_value?: number | null
   dimensions?: Record<string, unknown> | null
+  created_at?: string | null
+}
+
+type SocialAnalyticsSnapshot = {
+  id: string
+  client_id: string
+  engine_run_id?: string | null
+  platform: SocialPlatform
+  date_range_start?: string | null
+  date_range_end?: string | null
+  snapshot_date?: string | null
+  profile_metrics?: Record<string, unknown> | null
+  audience_metrics?: Record<string, unknown> | null
+  engagement_metrics?: Record<string, unknown> | null
+  reach_view_metrics?: Record<string, unknown> | null
+  content_type_breakdown?: unknown[] | Record<string, unknown> | null
+  follower_breakdown?: Record<string, unknown> | null
+  top_content?: unknown[] | null
+  recent_content?: unknown[] | null
+  metric_errors?: unknown[] | null
+  source_engine?: string | null
+  created_at?: string | null
+}
+
+type SocialAnalyticsSummary = {
+  id: string
+  client_id: string
+  platform?: string | null
+  summary_date?: string | null
+  comparison_label?: string | null
+  what_changed?: unknown[] | null
+  follower_summary?: string | null
+  engagement_summary?: string | null
+  views_reach_summary?: string | null
+  top_content_summary?: string | null
+  recommendations?: unknown[] | null
+  source_snapshot_ids?: unknown[] | null
   created_at?: string | null
 }
 
@@ -213,6 +258,8 @@ type AppData = {
   dailyRuns: DailyRun[]
   outputs: IntelligenceOutput[]
   metrics: Metric[]
+  snapshots: SocialAnalyticsSnapshot[]
+  analyticsSummaries: SocialAnalyticsSummary[]
   plans: ContentPlan[]
   items: ContentItem[]
   updates: ContentPlanUpdate[]
@@ -340,6 +387,8 @@ const emptyData: AppData = {
   dailyRuns: [],
   outputs: [],
   metrics: [],
+  snapshots: [],
+  analyticsSummaries: [],
   plans: [],
   items: [],
   updates: [],
@@ -523,7 +572,7 @@ function useVipData(
       const clientRows = await loadClients(client, errors)
       const targetClientId = selectedClientId || clientRows[0]?.id || ''
 
-      const [engineRuns, dailyRuns, outputs, metrics, plans, items, updates] = await Promise.all([
+      const [engineRuns, dailyRuns, outputs, metrics, snapshots, analyticsSummaries, plans, items, updates] = await Promise.all([
         safeSelect<EngineRun>(
           client,
           'engine_runs',
@@ -554,6 +603,53 @@ function useVipData(
           'id, client_id, engine_name, source_platform, metric_date, metric_name, metric_value, dimensions, created_at',
           errors,
           (query) => query.eq('client_id', targetClientId).in('engine_name', libraryEngines).order('metric_date', { ascending: false }).limit(800),
+          targetClientId,
+        ),
+        safeOptionalSelect<SocialAnalyticsSnapshot>(
+          client,
+          'social_analytics_snapshots',
+          [
+            'id',
+            'client_id',
+            'engine_run_id',
+            'platform',
+            'date_range_start',
+            'date_range_end',
+            'snapshot_date',
+            'profile_metrics',
+            'audience_metrics',
+            'engagement_metrics',
+            'reach_view_metrics',
+            'content_type_breakdown',
+            'follower_breakdown',
+            'top_content',
+            'recent_content',
+            'metric_errors',
+            'source_engine',
+            'created_at',
+          ].join(', '),
+          (query) => query.eq('client_id', targetClientId).order('created_at', { ascending: false }).limit(120),
+          targetClientId,
+        ),
+        safeOptionalSelect<SocialAnalyticsSummary>(
+          client,
+          'social_analytics_daily_summaries',
+          [
+            'id',
+            'client_id',
+            'platform',
+            'summary_date',
+            'comparison_label',
+            'what_changed',
+            'follower_summary',
+            'engagement_summary',
+            'views_reach_summary',
+            'top_content_summary',
+            'recommendations',
+            'source_snapshot_ids',
+            'created_at',
+          ].join(', '),
+          (query) => query.eq('client_id', targetClientId).order('created_at', { ascending: false }).limit(60),
           targetClientId,
         ),
         safeSelect<ContentPlan>(
@@ -622,6 +718,8 @@ function useVipData(
           dailyRuns,
           outputs,
           metrics,
+          snapshots,
+          analyticsSummaries,
           plans,
           items,
           updates,
@@ -690,6 +788,21 @@ async function safeSelect<T>(
     errors.push(`${table}: ${error.message}`)
     return []
   }
+  return (data || []) as T[]
+}
+
+async function safeOptionalSelect<T>(
+  client: SupabaseClient,
+  table: string,
+  columns: string,
+  refine?: (query: QueryBuilder<T>) => QueryBuilder<T>,
+  skipWhenMissingId?: string,
+): Promise<T[]> {
+  if (skipWhenMissingId === '') return []
+  let query = client.from(table).select(columns) as unknown as QueryBuilder<T>
+  if (refine) query = refine(query)
+  const { data, error } = await query
+  if (error) return []
   return (data || []) as T[]
 }
 
@@ -1299,20 +1412,94 @@ function CalendarPage() {
 
 function AnalyticsPage() {
   const data = useVip()
-  const groups: SocialPlatform[] = ['facebook', 'instagram', 'youtube']
-  const discoveredMetricNames = uniqueOptions(data.metrics.map((metric) => metric.metric_name))
+  const [tab, setTab] = useState<'overview' | SocialPlatform | 'content'>('overview')
+  const [range, setRange] = useState<'latest' | '7d' | '28d'>('latest')
+  const platforms: SocialPlatform[] = ['facebook', 'instagram', 'youtube']
+  const analytics = platforms.map((platform) => buildPlatformAnalytics(platform, data.snapshots, data.analyticsSummaries, data.metrics, range))
+  const topAcrossPlatforms = analytics.flatMap((entry) => entry.topContent.map((content) => ({ ...content, platform: entry.platform }))).sort((a, b) => b.score - a.score)
+  const bestFormat = bestContentFormat(analytics)
+  const selectedPlatform = platforms.includes(tab as SocialPlatform) ? analytics.find((entry) => entry.platform === tab) : null
+  const availableSnapshots = data.snapshots.length
 
   return (
-    <Page title="Analytics" subtitle="Platform performance with latest-vs-previous-run movement where comparable metrics exist.">
-      <div className="platform-analytics-grid">
-        {groups.map((group) => (
-          <PlatformAnalyticsCard key={group} platform={group} metrics={data.metrics} outputs={data.outputs} />
-        ))}
+    <Page title="Analytics" subtitle="Native-style social media analytics for Aayu Geriatrics.">
+      <div className="analytics-toolbar">
+        <div className="analytics-tabs" role="tablist" aria-label="Analytics views">
+          {[
+            ['overview', 'Overview'],
+            ['facebook', 'Facebook'],
+            ['instagram', 'Instagram'],
+            ['youtube', 'YouTube'],
+            ['content', 'Content Performance'],
+          ].map(([value, label]) => (
+            <button key={value} type="button" className={tab === value ? 'active' : ''} onClick={() => setTab(value as typeof tab)}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <label className="filter-control">
+          <span>Date range</span>
+          <select value={range} onChange={(event) => setRange(event.target.value as typeof range)}>
+            <option value="latest">Latest run</option>
+            <option value="7d">Last 7 days</option>
+            <option value="28d">Last 28 days</option>
+          </select>
+        </label>
       </div>
-      <details className="details-panel">
-        <summary>View discovered metric names</summary>
-        <p className="muted">{discoveredMetricNames.length ? discoveredMetricNames.join(', ') : 'No normalized metric names are visible yet.'}</p>
-      </details>
+
+      {availableSnapshots === 0 && (
+        <div className="notice compact">
+          <AlertTriangle size={18} />
+          <div>
+            <strong>Analytics snapshots not visible yet</strong>
+            <p>The page is using normalized_metrics fallback rows. Apply the new snapshot tables and refresh the analytics workflow for full platform-style details.</p>
+          </div>
+        </div>
+      )}
+
+      {tab === 'overview' && (
+        <>
+          <section className="analytics-hero-grid">
+            <AnalyticsMetricTile title="Followers / Subscribers" icon={Users} analytics={analytics} metric="followers" />
+            <AnalyticsMetricTile title="Views / Reach" icon={Eye} analytics={analytics} metric="views" />
+            <AnalyticsMetricTile title="Interactions" icon={ThumbsUp} analytics={analytics} metric="interactions" />
+            <article className="metric-card">
+              <TrendingUp size={21} />
+              <span>Best content format</span>
+              <strong>{bestFormat?.label || 'Not available'}</strong>
+              <p>{bestFormat ? `${bestFormat.count} item(s) visible across snapshots.` : 'Not available from API yet.'}</p>
+            </article>
+          </section>
+
+          <section className="split-grid">
+            <Panel title="Movement Trend">
+              <PointsChart
+                title="Views / reach from available rows"
+                data={buildOverviewChartData(data.metrics, analytics)}
+                yAxisLabel="Volume"
+              />
+            </Panel>
+            <Panel title="Top Content Across Platforms">
+              <ContentRows rows={topAcrossPlatforms.slice(0, 5)} empty="No top content visible from analytics snapshots yet." />
+            </Panel>
+          </section>
+
+          <Panel title="Recommendation Summary">
+            <div className="recommendation-grid">
+              {analytics.map((entry) => (
+                <article key={entry.platform} className="detail-field">
+                  <span>{titleize(entry.platform)}</span>
+                  <p>{entry.summary?.recommendations?.length ? renderCompactValue(entry.summary.recommendations[0]) : entry.summary?.top_content_summary || 'Not available from API yet.'}</p>
+                </article>
+              ))}
+            </div>
+          </Panel>
+        </>
+      )}
+
+      {selectedPlatform && <PlatformAnalyticsCard analytics={selectedPlatform} />}
+
+      {tab === 'content' && <ContentPerformanceAnalytics analytics={analytics} />}
     </Page>
   )
 }
@@ -1527,54 +1714,240 @@ function TrendBadge({ movement }: { movement: MetricMovement }) {
   return <span className={`trend-badge ${movement.state}`}>{label}</span>
 }
 
-function PlatformAnalyticsCard({ platform, metrics, outputs }: { platform: SocialPlatform; metrics: Metric[]; outputs: IntelligenceOutput[] }) {
-  const platformMetrics = dataForPlatform(metrics, platform)
-  const platformOutputs = outputs.filter((output) => analyticsGroupMatch(platform, output.source_platform, output.engine_name))
-  const latest = platformOutputs[0]
-  const rows = socialMetricDefinitions
-    .filter((definition) => definition.platform === platform)
-    .map((definition) => buildMetricMovement(metrics, definition))
-  const explanations = buildPlatformExplanations(platform, latest)
+type ContentRow = {
+  id: string
+  title: string
+  subtitle: string
+  thumbnail?: string
+  permalink?: string
+  score: number
+  stats: Array<[string, unknown]>
+  platform?: SocialPlatform
+}
+
+type PlatformAnalytics = {
+  platform: SocialPlatform
+  snapshot?: SocialAnalyticsSnapshot
+  previousSnapshot?: SocialAnalyticsSnapshot
+  summary?: SocialAnalyticsSummary
+  metrics: Record<string, number | null>
+  movements: Record<string, MetricMovement>
+  contentTypes: Array<{ label: string; value: number }>
+  topContent: ContentRow[]
+  recentContent: ContentRow[]
+  metricErrors: unknown[]
+  comparisonLabel: string
+  metricRows: Metric[]
+}
+
+function PlatformAnalyticsCard({ analytics }: { analytics: PlatformAnalytics }) {
+  const config = platformCardConfig(analytics.platform)
+  const kpis = config.kpis.map((entry) => ({
+    ...entry,
+    value: analytics.metrics[entry.key] ?? null,
+    movement: movementForMetric(analytics, entry.key, entry.label),
+  }))
 
   return (
-    <Panel title={titleize(platform)}>
-      <div className="analytics-kpi-list">
-        {rows.map((row) => (
-          <div key={row.label} className="analytics-kpi">
-            <span>{row.label.replace(`${titleize(platform)} `, '')}</span>
-            <strong>{formatMetricValue(row.value)}</strong>
-            <TrendBadge movement={row} />
-          </div>
+    <>
+      <section className="analytics-platform-header">
+        <div>
+          <p className="eyebrow">{titleize(analytics.platform)} analytics</p>
+          <h3>{config.title}</h3>
+          <p>{analytics.snapshot ? `Snapshot ${formatDate(analytics.snapshot.snapshot_date || analytics.snapshot.created_at)} / ${analytics.comparisonLabel}` : 'Not available from API yet.'}</p>
+        </div>
+        <div className="badge-row">
+          <StatusBadge value={analytics.snapshot ? 'live analytics' : 'normalized fallback'} />
+          {analytics.metricErrors.length > 0 && <StatusBadge value={`${analytics.metricErrors.length} metric warning(s)`} />}
+        </div>
+      </section>
+
+      <section className="analytics-kpi-grid">
+        {kpis.map((kpi) => (
+          <article key={kpi.key} className="analytics-stat-card">
+            <div className="analytics-stat-top">
+              <kpi.icon size={18} />
+              <span>{kpi.label}</span>
+            </div>
+            <strong>{formatAvailability(kpi.value)}</strong>
+            <DeltaBadge movement={kpi.movement} />
+            <p>{kpi.detail}</p>
+          </article>
         ))}
-      </div>
-      <div className="explanation-list">
-        {explanations.map((entry) => (
-          <div key={entry.question} className="explanation-row">
-            <span>{entry.question}</span>
-            <p>{entry.answer}</p>
+      </section>
+
+      <section className="split-grid">
+        <Panel title={config.contentBreakdownTitle}>
+          <BreakdownBars rows={analytics.contentTypes} />
+        </Panel>
+        <Panel title="Know More">
+          <div className="explanation-list">
+            <ExplanationDetail title="What changed?" value={analytics.summary?.what_changed} />
+            <ExplanationDetail title="Followers / subscribers" value={analytics.summary?.follower_summary} />
+            <ExplanationDetail title="Interactions" value={analytics.summary?.engagement_summary} />
+            <ExplanationDetail title="Views / reach" value={analytics.summary?.views_reach_summary} />
+            <ExplanationDetail title="Top content" value={analytics.summary?.top_content_summary} />
           </div>
-        ))}
-      </div>
+        </Panel>
+      </section>
+
+      <section className="split-grid">
+        <Panel title={config.topTitle}>
+          <ContentRows rows={analytics.topContent} empty="No top content visible from API yet." />
+        </Panel>
+        <Panel title={config.recentTitle}>
+          <ContentRows rows={analytics.recentContent} empty="No recent posts/media/videos visible from API yet." />
+        </Panel>
+      </section>
+
       <details className="details-panel">
-        <summary>Know more</summary>
-        <p className="report-summary">{latest?.summary || 'No AI-style explanation is visible for this platform yet.'}</p>
-        <JsonList title="Recommendations" value={latest?.recommendations} />
-        <JsonList title="Next actions" value={latest?.next_actions} />
-      </details>
-      <details className="details-panel">
-        <summary>View details</summary>
+        <summary>View metric rows</summary>
         <DataTable
           columns={['Date', 'Metric', 'Value', 'Source']}
-          rows={platformMetrics.slice(0, 12).map((metric) => [
+          rows={analytics.metricRows.slice(0, 18).map((metric) => [
             formatDate(metric.metric_date),
             titleize(metric.metric_name),
             metric.metric_value ?? '-',
             titleize(metric.engine_name),
           ])}
-          empty="No metrics visible for this platform."
+          empty="No normalized metrics visible for this platform."
         />
       </details>
-    </Panel>
+    </>
+  )
+}
+
+function AnalyticsMetricTile({
+  title,
+  icon: Icon,
+  analytics,
+  metric,
+}: {
+  title: string
+  icon: ComponentType<{ size?: number }>
+  analytics: PlatformAnalytics[]
+  metric: 'followers' | 'views' | 'interactions'
+}) {
+  const values = analytics.map((entry) => entry.metrics[metric]).filter((value): value is number => typeof value === 'number')
+  const total = values.length ? values.reduce((sum, value) => sum + value, 0) : null
+  const deltas = analytics.map((entry) => movementForMetric(entry, metric, title).delta).filter((value): value is number => typeof value === 'number')
+  const delta = deltas.length ? deltas.reduce((sum, value) => sum + value, 0) : null
+  const movement: MetricMovement = {
+    label: title,
+    platform: 'facebook',
+    value: total,
+    delta,
+    state: total === null ? 'unavailable' : delta === null ? 'baseline' : delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat',
+    metricNames: [],
+  }
+
+  return (
+    <article className="metric-card">
+      <Icon size={21} />
+      <span>{title}</span>
+      <strong>{formatAvailability(total)}</strong>
+      <DeltaBadge movement={movement} />
+      <p>{values.length ? 'Combined visible platform analytics.' : 'Not available from API yet.'}</p>
+    </article>
+  )
+}
+
+function ContentPerformanceAnalytics({ analytics }: { analytics: PlatformAnalytics[] }) {
+  const strongest = strongestPlatform(analytics)
+  const weakest = weakestPlatform(analytics)
+  const format = bestContentFormat(analytics)
+  const allContent = analytics.flatMap((entry) => entry.topContent.map((content) => ({ ...content, platform: entry.platform }))).sort((a, b) => b.score - a.score)
+
+  return (
+    <>
+      <section className="metric-grid">
+        <MetricCard icon={TrendingUp} label="Strongest platform" value={strongest ? titleize(strongest.platform) : 'Not available'} detail={strongest ? `${formatMetricValue(strongest.metrics.interactions)} interactions visible.` : 'Not available from API yet.'} />
+        <MetricCard icon={AlertTriangle} label="Weakest platform" value={weakest ? titleize(weakest.platform) : 'Not available'} detail={weakest ? `${formatMetricValue(weakest.metrics.interactions)} interactions visible.` : 'Not available from API yet.'} tone={weakest ? 'warning' : undefined} />
+        <MetricCard icon={Camera} label="Best format" value={format?.label || 'Not available'} detail={format ? `${format.count} item(s) in available breakdowns.` : 'Not available from API yet.'} />
+        <MetricCard icon={Share2} label="Boost candidates" value={String(allContent.length)} detail="Visible high-performing posts, media, or videos from snapshots." />
+      </section>
+      <section className="split-grid">
+        <Panel title="Boost Candidates">
+          <ContentRows rows={allContent.slice(0, 5)} empty="No boost candidates visible yet." />
+        </Panel>
+        <Panel title="Repurpose / Improve Candidates">
+          <div className="recommendation-grid">
+            {analytics.map((entry) => (
+              <article key={entry.platform} className="detail-field">
+                <span>{titleize(entry.platform)}</span>
+                <p>{entry.summary?.recommendations?.length ? renderCompactValue(entry.summary.recommendations[0]) : entry.metricErrors.length ? 'Resolve metric warning before repurposing.' : 'Not available from API yet.'}</p>
+              </article>
+            ))}
+          </div>
+        </Panel>
+      </section>
+    </>
+  )
+}
+
+function DeltaBadge({ movement }: { movement: MetricMovement }) {
+  const deltaType = movement.state === 'up' ? 'increase' : movement.state === 'down' ? 'decrease' : 'neutral'
+  const value = movement.state === 'unavailable'
+    ? 'unavailable'
+    : movement.state === 'baseline'
+      ? 'baseline'
+      : movement.delta === null
+        ? '0'
+        : `${movement.delta > 0 ? '+' : ''}${formatMetricValue(movement.delta)}`
+
+  return <BadgeDelta variant="solidOutline" deltaType={deltaType} value={value} />
+}
+
+function BreakdownBars({ rows }: { rows: Array<{ label: string; value: number }> }) {
+  const max = Math.max(...rows.map((row) => row.value), 0)
+  if (!rows.length) return <EmptyState title="Not available from API yet" detail="Content type breakdown will appear after snapshots are generated." />
+
+  return (
+    <div className="breakdown-bars">
+      {rows.map((row) => (
+        <div key={row.label} className="breakdown-row">
+          <span>{row.label}</span>
+          <div>
+            <i style={{ width: `${max ? Math.max((row.value / max) * 100, 6) : 0}%` }} />
+          </div>
+          <strong>{formatMetricValue(row.value)}</strong>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function ContentRows({ rows, empty }: { rows: ContentRow[]; empty: string }) {
+  if (!rows.length) return <EmptyState title={empty} />
+
+  return (
+    <div className="content-analytics-list">
+      {rows.map((row) => (
+        <article key={`${row.platform || 'content'}-${row.id}`} className="content-analytics-row">
+          <div className="content-thumb">
+            {row.thumbnail ? <img src={row.thumbnail} alt="" /> : <Video size={20} />}
+          </div>
+          <div>
+            <div className="badge-row">
+              {row.platform && <StatusBadge value={titleize(row.platform)} />}
+              <StatusBadge value={row.subtitle} />
+            </div>
+            <strong>{row.title}</strong>
+            <p>{row.stats.map(([label, value]) => `${label}: ${formatAvailability(numberFromUnknown(value) ?? value)}`).join(' / ')}</p>
+            {row.permalink && <a className="text-link" href={row.permalink} target="_blank" rel="noreferrer">Open post</a>}
+          </div>
+        </article>
+      ))}
+    </div>
+  )
+}
+
+function ExplanationDetail({ title, value }: { title: string; value: unknown }) {
+  return (
+    <details className="explanation-row">
+      <summary>{title}</summary>
+      <p>{renderCompactValue(value) || 'Not available from API yet.'}</p>
+    </details>
   )
 }
 
@@ -1729,6 +2102,312 @@ function Filter({ label, value, values, onChange }: { label: string; value: stri
   )
 }
 
+function buildPlatformAnalytics(
+  platform: SocialPlatform,
+  snapshots: SocialAnalyticsSnapshot[],
+  summaries: SocialAnalyticsSummary[],
+  metrics: Metric[],
+  range: 'latest' | '7d' | '28d',
+): PlatformAnalytics {
+  const platformSnapshots = snapshots
+    .filter((snapshot) => normalize(snapshot.platform) === platform)
+    .filter((snapshot) => snapshotInRange(snapshot, range))
+    .sort((a, b) => dateMillis(b.created_at || b.snapshot_date) - dateMillis(a.created_at || a.snapshot_date))
+  const snapshot = platformSnapshots[0]
+  const previousSnapshot = platformSnapshots[1]
+  const metricRows = dataForPlatform(metrics, platform).filter((metric) => metricInRange(metric, range))
+  const summary = summaries
+    .filter((entry) => normalize(entry.platform || platform) === platform || !entry.platform)
+    .sort((a, b) => dateMillis(b.created_at || b.summary_date) - dateMillis(a.created_at || a.summary_date))[0]
+  const fallbackMovements = Object.fromEntries(
+    socialMetricDefinitions
+      .filter((definition) => definition.platform === platform)
+      .map((definition) => [metricKeyForGroup(definition.group), buildMetricMovement(metrics, definition)]),
+  ) as Record<string, MetricMovement>
+  const metricsMap = platformMetricsFromSnapshot(platform, snapshot, fallbackMovements)
+  const previousMetrics = platformMetricsFromSnapshot(platform, previousSnapshot, {})
+  const movements = Object.fromEntries(
+    Object.entries(metricsMap).map(([key, value]) => {
+      const previousValue = previousMetrics[key]
+      const fallback = fallbackMovements[key]
+      const delta = value !== null && typeof previousValue === 'number' ? value - previousValue : fallback?.delta ?? null
+      return [
+        key,
+        {
+          label: titleize(key),
+          platform,
+          value,
+          delta,
+          state: value === null ? 'unavailable' : delta === null ? 'baseline' : delta > 0 ? 'up' : delta < 0 ? 'down' : 'flat',
+          metricNames: [],
+        },
+      ]
+    }),
+  ) as Record<string, MetricMovement>
+
+  return {
+    platform,
+    snapshot,
+    previousSnapshot,
+    summary,
+    metrics: metricsMap,
+    movements,
+    contentTypes: contentTypesFromSnapshot(snapshot),
+    topContent: contentRowsFromUnknown(snapshot?.top_content),
+    recentContent: contentRowsFromUnknown(snapshot?.recent_content),
+    metricErrors: Array.isArray(snapshot?.metric_errors) ? snapshot.metric_errors : [],
+    comparisonLabel: summary?.comparison_label || (previousSnapshot ? 'latest vs previous run' : 'latest run baseline'),
+    metricRows,
+  }
+}
+
+function platformMetricsFromSnapshot(
+  platform: SocialPlatform,
+  snapshot: SocialAnalyticsSnapshot | undefined,
+  fallbackMovements: Partial<Record<string, MetricMovement>>,
+): Record<string, number | null> {
+  const profile = snapshot?.profile_metrics || {}
+  const audience = snapshot?.audience_metrics || {}
+  const engagement = snapshot?.engagement_metrics || {}
+  const reach = snapshot?.reach_view_metrics || {}
+
+  if (platform === 'facebook') {
+    return {
+      followers: firstNumber([profile, audience], ['followers', 'followers_count', 'page_followers', 'page_fans', 'fan_count']) ?? fallbackMovements.followers?.value ?? null,
+      views: firstNumber([reach, profile], ['page_views', 'page_views_total', 'views', 'reach', 'impressions']) ?? fallbackMovements.views?.value ?? null,
+      interactions: firstNumber([engagement], ['interactions', 'post_engagements', 'page_post_engagements', 'total_engagement', 'engagement']) ?? fallbackMovements.interactions?.value ?? null,
+      reactions: firstNumber([engagement], ['reactions', 'total_reactions']) ?? null,
+      comments: firstNumber([engagement], ['comments', 'total_comments']) ?? null,
+      shares: firstNumber([engagement], ['shares', 'total_shares']) ?? null,
+    }
+  }
+
+  if (platform === 'instagram') {
+    return {
+      followers: firstNumber([profile, audience], ['followers_count', 'followers']) ?? fallbackMovements.followers?.value ?? null,
+      follows: firstNumber([profile, audience], ['follows_count', 'follows']) ?? null,
+      media: firstNumber([profile], ['media_count', 'media']) ?? null,
+      views: firstNumber([reach], ['reach', 'views', 'plays', 'impressions']) ?? fallbackMovements.views?.value ?? null,
+      interactions: firstNumber([engagement], ['total_interactions', 'interactions']) ?? fallbackMovements.interactions?.value ?? null,
+      likes: firstNumber([engagement], ['likes', 'total_likes']) ?? null,
+      comments: firstNumber([engagement], ['comments', 'total_comments']) ?? null,
+      saves: firstNumber([engagement], ['saves', 'total_saves']) ?? null,
+      shares: firstNumber([engagement], ['shares', 'total_shares']) ?? null,
+    }
+  }
+
+  return {
+    followers: firstNumber([profile, audience], ['subscribers', 'subscriber_count', 'subscribers_count']) ?? fallbackMovements.followers?.value ?? null,
+    views: firstNumber([reach, profile], ['views', 'total_views', 'channel_views', 'recent_video_views']) ?? fallbackMovements.views?.value ?? null,
+    videos: firstNumber([profile], ['video_count', 'videos']) ?? null,
+    interactions: firstNumber([engagement], ['interactions', 'likes_comments', 'engagement']) ?? fallbackMovements.interactions?.value ?? null,
+    likes: firstNumber([engagement], ['likes', 'total_likes', 'recent_likes']) ?? null,
+    comments: firstNumber([engagement], ['comments', 'total_comments', 'recent_comments']) ?? null,
+    watch_time: firstNumber([reach], ['watch_time', 'estimated_minutes_watched']) ?? null,
+  }
+}
+
+function platformCardConfig(platform: SocialPlatform) {
+  const commonIcon = platform === 'youtube' ? Video : platform === 'instagram' ? Camera : BarChart3
+  if (platform === 'facebook') {
+    return {
+      title: 'Facebook / Meta Page Insights',
+      contentBreakdownTitle: 'Post Type Breakdown',
+      topTitle: 'Top Posts By Engagement',
+      recentTitle: 'Recent Posts',
+      kpis: [
+        { key: 'followers', label: 'Page followers', detail: 'Page fans/followers where API grants access.', icon: Users },
+        { key: 'views', label: 'Page views / reach', detail: 'Page views, reach, or impressions from Meta insights.', icon: Eye },
+        { key: 'interactions', label: 'Post interactions', detail: 'Reactions, comments, shares, and post engagement.', icon: ThumbsUp },
+        { key: 'shares', label: 'Shares', detail: 'Share count from recent posts when available.', icon: Share2 },
+      ],
+    }
+  }
+  if (platform === 'instagram') {
+    return {
+      title: 'Instagram Insights',
+      contentBreakdownTitle: 'Reels / Posts / Carousel',
+      topTitle: 'Top Media By Interactions',
+      recentTitle: 'Recent Media',
+      kpis: [
+        { key: 'followers', label: 'Followers', detail: 'followers_count from Instagram profile metrics.', icon: Users },
+        { key: 'views', label: 'Reach / plays', detail: 'Reach, plays, views, or impressions when available.', icon: Eye },
+        { key: 'interactions', label: 'Interactions', detail: 'Likes, comments, saves, shares, and total interactions.', icon: commonIcon },
+        { key: 'saves', label: 'Saves', detail: 'Save count from media insights when granted.', icon: Bookmark },
+      ],
+    }
+  }
+  return {
+    title: 'YouTube Studio Analytics',
+    contentBreakdownTitle: 'Video Type Breakdown',
+    topTitle: 'Top Videos By Views',
+    recentTitle: 'Recent Videos',
+    kpis: [
+      { key: 'views', label: 'Views', detail: 'Lifetime or recent video views from YouTube API.', icon: Eye },
+      { key: 'followers', label: 'Subscribers', detail: 'Subscriber count and movement when available.', icon: Users },
+      { key: 'likes', label: 'Likes', detail: 'Recent video likes where available.', icon: ThumbsUp },
+      { key: 'comments', label: 'Comments', detail: 'Recent video comments where available.', icon: commonIcon },
+    ],
+  }
+}
+
+function movementForMetric(analytics: PlatformAnalytics, key: string, label: string): MetricMovement {
+  return analytics.movements[key] || {
+    label,
+    platform: analytics.platform,
+    value: analytics.metrics[key] ?? null,
+    delta: null,
+    state: analytics.metrics[key] === null || analytics.metrics[key] === undefined ? 'unavailable' : 'baseline',
+    metricNames: [],
+  }
+}
+
+function contentTypesFromSnapshot(snapshot?: SocialAnalyticsSnapshot) {
+  const breakdown = snapshot?.content_type_breakdown
+  if (Array.isArray(breakdown)) {
+    return breakdown
+      .map((entry) => {
+        if (typeof entry === 'string') return { label: titleize(entry), value: 1 }
+        if (!entry || typeof entry !== 'object') return null
+        const object = entry as Record<string, unknown>
+        return {
+          label: titleize(String(object.type || object.label || object.content_type || object.media_type || 'Unknown')),
+          value: numberFromUnknown(object.count ?? object.value ?? object.total) ?? 0,
+        }
+      })
+      .filter((entry): entry is { label: string; value: number } => Boolean(entry && entry.value >= 0))
+  }
+  if (breakdown && typeof breakdown === 'object') {
+    return Object.entries(breakdown).map(([label, value]) => ({ label: titleize(label), value: numberFromUnknown(value) ?? 0 }))
+  }
+  return []
+}
+
+function contentRowsFromUnknown(value: unknown): ContentRow[] {
+  const rows = Array.isArray(value) ? value : []
+  return rows.map((entry, index) => contentRowFromUnknown(entry, index)).filter((entry): entry is ContentRow => Boolean(entry))
+}
+
+function contentRowFromUnknown(value: unknown, index: number): ContentRow | null {
+  if (!value || typeof value !== 'object') return null
+  const object = value as Record<string, unknown>
+  const title = renderCompactValue(object.title || object.message || object.caption || object.name || object.id || `Content ${index + 1}`)
+  const type = renderCompactValue(object.media_type || object.media_product_type || object.status_type || object.type || object.duration || 'Content')
+  const score =
+    firstNumber([object], ['interactions', 'engagement', 'views', 'viewCount', 'view_count', 'reach', 'likes', 'like_count']) ?? 0
+  return {
+    id: String(object.id || object.post_id || object.videoId || object.video_id || index),
+    title: previewText(title),
+    subtitle: titleize(type),
+    thumbnail: stringFromUnknown(object.thumbnail || object.thumbnail_url || object.full_picture || object.media_url),
+    permalink: stringFromUnknown(object.permalink || object.permalink_url || object.url),
+    score,
+    stats: ([
+      ['views', object.views ?? object.viewCount ?? object.view_count ?? object.plays],
+      ['interactions', object.interactions ?? object.total_interactions ?? object.engagement],
+      ['likes', object.likes ?? object.like_count ?? object.likeCount],
+      ['comments', object.comments ?? object.comments_count ?? object.commentCount],
+      ['shares', object.shares ?? object.share_count],
+      ['saves', object.saves],
+    ] as Array<[string, unknown]>).filter(([, entry]) => entry !== undefined && entry !== null),
+  }
+}
+
+function buildOverviewChartData(metrics: Metric[], analytics: PlatformAnalytics[]): PointsChartDataPoint[] {
+  const byDate = new Map<string, number>()
+  metrics
+    .filter((metric) => ['views', 'reach', 'impressions', 'page_views_total', 'post_impressions', 'youtube_total_views', 'instagram_reach'].some((name) => normalize(metric.metric_name).includes(normalize(name))))
+    .filter((metric) => typeof metric.metric_value === 'number' && metric.metric_date)
+    .forEach((metric) => {
+      byDate.set(metric.metric_date, (byDate.get(metric.metric_date) || 0) + Number(metric.metric_value))
+    })
+
+  if (!byDate.size) {
+    const total = analytics.map((entry) => entry.metrics.views).filter((value): value is number => typeof value === 'number').reduce((sum, value) => sum + value, 0)
+    return total ? [{ date: 'Latest', total, change: 0 }] : []
+  }
+
+  return Array.from(byDate.entries())
+    .sort(([a], [b]) => dateMillis(a) - dateMillis(b))
+    .slice(-8)
+    .map(([date, total], index, rows) => ({ date: formatDate(date).replace(' 2026', ''), total, change: index ? total - rows[index - 1][1] : 0 }))
+}
+
+function strongestPlatform(analytics: PlatformAnalytics[]) {
+  return analytics
+    .filter((entry) => typeof entry.metrics.interactions === 'number')
+    .sort((a, b) => Number(b.metrics.interactions) - Number(a.metrics.interactions))[0]
+}
+
+function weakestPlatform(analytics: PlatformAnalytics[]) {
+  return analytics
+    .filter((entry) => typeof entry.metrics.interactions === 'number')
+    .sort((a, b) => Number(a.metrics.interactions) - Number(b.metrics.interactions))[0]
+}
+
+function bestContentFormat(analytics: PlatformAnalytics[]) {
+  const counts = new Map<string, number>()
+  analytics.flatMap((entry) => entry.contentTypes).forEach((entry) => counts.set(entry.label, (counts.get(entry.label) || 0) + entry.value))
+  return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]).map(([label, count]) => ({ label, count }))[0]
+}
+
+function firstNumber(objects: Array<Record<string, unknown>>, keys: string[]) {
+  for (const object of objects) {
+    for (const key of keys) {
+      const direct = numberFromUnknown(object[key])
+      if (direct !== null) return direct
+      const nested = findNestedValue(object, key)
+      const nestedNumber = numberFromUnknown(nested)
+      if (nestedNumber !== null) return nestedNumber
+    }
+  }
+  return null
+}
+
+function numberFromUnknown(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value.replace(/,/g, ''))
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const total = Object.values(value as Record<string, unknown>).reduce<number>((sum, entry) => sum + (numberFromUnknown(entry) || 0), 0)
+    return total || null
+  }
+  return null
+}
+
+function stringFromUnknown(value: unknown): string | undefined {
+  return typeof value === 'string' && value ? value : undefined
+}
+
+function formatAvailability(value: unknown) {
+  const numberValue = numberFromUnknown(value)
+  if (numberValue !== null) return formatMetricValue(numberValue)
+  if (value === null || value === undefined || value === '') return 'Not available'
+  return renderCompactValue(value)
+}
+
+function metricKeyForGroup(group: SocialMetricGroup) {
+  if (group === 'reach') return 'views'
+  if (group === 'engagement') return 'interactions'
+  return 'followers'
+}
+
+function snapshotInRange(snapshot: SocialAnalyticsSnapshot, range: 'latest' | '7d' | '28d') {
+  if (range === 'latest') return true
+  const days = range === '7d' ? 7 : 28
+  const timestamp = dateMillis(snapshot.snapshot_date || snapshot.created_at)
+  return timestamp ? Date.now() - timestamp <= days * 24 * 60 * 60 * 1000 : true
+}
+
+function metricInRange(metric: Metric, range: 'latest' | '7d' | '28d') {
+  if (range === 'latest') return true
+  const days = range === '7d' ? 7 : 28
+  const timestamp = dateMillis(metric.metric_date || metric.created_at)
+  return timestamp ? Date.now() - timestamp <= days * 24 * 60 * 60 * 1000 : true
+}
+
 function buildMetricGroup(metrics: Metric[], group: SocialMetricGroup) {
   return socialMetricDefinitions
     .filter((definition) => definition.group === group)
@@ -1850,35 +2529,6 @@ function topContentFromUnknown(value: unknown): TopContentSummary | null {
     reason: previewText(reason),
     detail: renderCompactValue(value),
   }
-}
-
-function buildPlatformExplanations(platform: SocialPlatform, output?: IntelligenceOutput) {
-  return [
-    {
-      question: 'What gained followers?',
-      answer: explanationAnswer(output, ['follower_growth_reason', 'what_gained_followers', 'audience_growth_reason']),
-    },
-    {
-      question: 'What increased interactions?',
-      answer: explanationAnswer(output, ['interaction_driver', 'engagement_driver', 'what_increased_interactions']),
-    },
-    {
-      question: 'What gave more views?',
-      answer: explanationAnswer(output, ['views_driver', 'reach_driver', 'what_gave_more_views']),
-    },
-    {
-      question: 'What should we do next?',
-      answer: explanationAnswer(output, ['what_should_we_do_next', 'next_action', 'next_actions']) || `${titleize(platform)} needs more summarized intelligence before a clear action can be shown.`,
-    },
-  ]
-}
-
-function explanationAnswer(output: IntelligenceOutput | undefined, keys: string[]) {
-  for (const key of keys) {
-    const value = findOutputValue(output, key)
-    if (value) return previewText(renderCompactValue(value))
-  }
-  return output?.summary ? previewText(output.summary) : 'No explanation visible in the latest intelligence output.'
 }
 
 function arrayFromUnknown(value: unknown): unknown[] {
