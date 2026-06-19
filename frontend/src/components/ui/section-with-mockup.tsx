@@ -9,6 +9,7 @@ interface SectionWithMockupProps {
   primaryImageSrc: string
   secondaryImageSrc: string
   reverseLayout?: boolean
+  mockupSlot?: ReactNode
 }
 
 export function SectionWithMockup({
@@ -17,6 +18,7 @@ export function SectionWithMockup({
   primaryImageSrc,
   secondaryImageSrc,
   reverseLayout = false,
+  mockupSlot,
 }: SectionWithMockupProps) {
   const containerVariants: Variants = {
     hidden: {},
@@ -63,37 +65,41 @@ export function SectionWithMockup({
             className={`relative mx-auto mt-10 w-full max-w-[300px] md:mt-0 md:max-w-[471px] ${imageOrderClass}`}
             variants={itemVariants}
           >
-            <motion.div
-              className="absolute z-0 h-[317px] w-[300px] rounded-[32px] bg-[#090909] md:h-[500px] md:w-[472px]"
-              style={{
-                top: reverseLayout ? 'auto' : '10%',
-                bottom: reverseLayout ? '10%' : 'auto',
-                left: reverseLayout ? 'auto' : '-20%',
-                right: reverseLayout ? '-20%' : 'auto',
-                transform: reverseLayout ? 'translate(0, 0)' : 'translateY(10%)',
-                filter: 'blur(2px)',
-              }}
-              whileInView={{ y: reverseLayout ? -20 : -30 }}
-              transition={{ duration: 1.2, ease: 'easeOut' }}
-              viewport={{ once: true, amount: 0.5 }}
-            >
-              <div
-                className="relative h-full w-full rounded-[32px] bg-cover bg-center"
-                style={{ backgroundImage: `url(${secondaryImageSrc})` }}
-              />
-            </motion.div>
+            {mockupSlot || (
+              <>
+                <motion.div
+                  className="absolute z-0 h-[317px] w-[300px] rounded-[32px] bg-[#090909] md:h-[500px] md:w-[472px]"
+                  style={{
+                    top: reverseLayout ? 'auto' : '10%',
+                    bottom: reverseLayout ? '10%' : 'auto',
+                    left: reverseLayout ? 'auto' : '-20%',
+                    right: reverseLayout ? '-20%' : 'auto',
+                    transform: reverseLayout ? 'translate(0, 0)' : 'translateY(10%)',
+                    filter: 'blur(2px)',
+                  }}
+                  whileInView={{ y: reverseLayout ? -20 : -30 }}
+                  transition={{ duration: 1.2, ease: 'easeOut' }}
+                  viewport={{ once: true, amount: 0.5 }}
+                >
+                  <div
+                    className="relative h-full w-full rounded-[32px] bg-cover bg-center"
+                    style={{ backgroundImage: `url(${secondaryImageSrc})` }}
+                  />
+                </motion.div>
 
-            <motion.div
-              className="relative z-10 h-[405px] w-full overflow-hidden rounded-[32px] bg-[#ffffff0a] backdrop-blur-[15px] md:h-[637px]"
-              whileInView={{ y: reverseLayout ? 20 : 30 }}
-              transition={{ duration: 1.2, ease: 'easeOut', delay: 0.1 }}
-              viewport={{ once: true, amount: 0.5 }}
-            >
-              <div
-                className="h-full w-full bg-cover bg-center"
-                style={{ backgroundImage: `url(${primaryImageSrc})` }}
-              />
-            </motion.div>
+                <motion.div
+                  className="relative z-10 h-[405px] w-full overflow-hidden rounded-[32px] bg-[#ffffff0a] backdrop-blur-[15px] md:h-[637px]"
+                  whileInView={{ y: reverseLayout ? 20 : 30 }}
+                  transition={{ duration: 1.2, ease: 'easeOut', delay: 0.1 }}
+                  viewport={{ once: true, amount: 0.5 }}
+                >
+                  <div
+                    className="h-full w-full bg-cover bg-center"
+                    style={{ backgroundImage: `url(${primaryImageSrc})` }}
+                  />
+                </motion.div>
+              </>
+            )}
           </motion.div>
         </motion.div>
       </div>
