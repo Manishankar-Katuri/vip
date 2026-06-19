@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || ''
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ''
+const env = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env || {}
+const supabaseUrl = env.SUPABASE_URL || env.VITE_SUPABASE_URL || ''
+const supabaseAnonKey = env.SUPABASE_ANON_KEY || env.VITE_SUPABASE_ANON_KEY || ''
 
 function getSupabaseForRequest(authorization: string) {
   if (!supabaseUrl || !supabaseAnonKey) {

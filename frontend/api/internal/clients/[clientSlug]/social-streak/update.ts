@@ -1,8 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || ''
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-const internalApiKey = process.env.INTERNAL_API_KEY || ''
+const env = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env || {}
+const supabaseUrl = env.SUPABASE_URL || env.VITE_SUPABASE_URL || ''
+const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY || ''
+const internalApiKey = env.INTERNAL_API_KEY || ''
 
 function getSupabaseAdmin() {
   if (!supabaseUrl || !serviceRoleKey) {
