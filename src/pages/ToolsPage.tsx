@@ -1,50 +1,62 @@
-import { BentoGrid, type BentoItem } from '@/components/ui/bento-grid'
-import { Clock, HeartPulse, LineChart } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { ArrowRight, BarChart3, HeartPulse, LayoutDashboard, LogIn } from 'lucide-react'
+import { SectionWithMockup } from '@/components/ui/section-with-mockup'
+import heroImage from '@/assets/hero.png'
 
-const tools: BentoItem[] = [
-  {
-    title: 'VIP',
-    meta: 'Vertical Intelligence Platform',
-    description:
-      'AI-powered social media intelligence, planning, analytics, and workflow automation for healthcare brands.',
-    icon: <HeartPulse className="w-4 h-4 text-emerald-500" />,
-    status: 'Built',
-    tags: ['AI', 'Automation', 'Healthcare', 'Social Media'],
-    cta: 'Open Tool →',
-    href: '/tools/vip',
-    colSpan: 2,
-    hasPersistentHover: true,
-  },
-  {
-    title: 'Acquisition Agent',
-    meta: 'Coming soon',
-    description: 'Pipeline intelligence and acquisition workflows for future Antaryami AI releases.',
-    icon: <LineChart className="w-4 h-4 text-gray-400" />,
-    status: 'Coming soon',
-    tags: ['Growth', 'Research'],
-    cta: 'Coming soon',
-  },
-  {
-    title: 'Reports Agent',
-    meta: 'Coming soon',
-    description: 'Executive-ready reporting and insight synthesis for future Antaryami AI releases.',
-    icon: <Clock className="w-4 h-4 text-gray-400" />,
-    status: 'Coming soon',
-    tags: ['Reports', 'Analytics'],
-    cta: 'Coming soon',
-  },
-]
+const mockupImages = {
+  primary: heroImage,
+  secondary:
+    'https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=900&q=80',
+}
 
 export function ToolsPage() {
   return (
     <main className="tools-page">
-      <section className="tools-page__header">
-        <p className="tools-page__eyebrow">Antaryami AI</p>
-        <h1>Antaryami AI Tools</h1>
-        <p>Intelligent systems for business growth, automation, and decision support.</p>
-      </section>
+      <SectionWithMockup
+        title={
+          <>
+            Healthcare intelligence,
+            <br />
+            ready for action.
+          </>
+        }
+        description="VIP turns social, local, competitor, trend, and content-performance signals into a coordinated operating system for healthcare marketing teams."
+        primaryImageSrc={mockupImages.primary}
+        secondaryImageSrc={mockupImages.secondary}
+      />
 
-      <BentoGrid items={tools} />
+      <section className="tools-page__catalog" aria-label="Available tools">
+        <article
+          className="tool-showcase-card tool-showcase-card--vip"
+          style={{ backgroundImage: `linear-gradient(90deg, rgba(7, 13, 12, 0.88), rgba(7, 13, 12, 0.54), rgba(7, 13, 12, 0.16)), url(${heroImage})` }}
+        >
+          <div className="tool-showcase-card__content">
+            <span className="tool-showcase-card__icon">
+              <HeartPulse size={24} />
+            </span>
+            <span className="tool-showcase-card__kicker">Available now</span>
+            <h1>Vertical Intelligence Platform</h1>
+            <p>
+              Social media intelligence, planning, analytics, and workflow operations for healthcare brands.
+            </p>
+          </div>
+          <div className="tool-action-grid" aria-label="VIP actions">
+            <Link className="tool-action-button primary" to="/tools/vip">
+              <LogIn size={18} />
+              Sign in
+              <ArrowRight size={18} />
+            </Link>
+            <Link className="tool-action-button" to="/dashboard">
+              <LayoutDashboard size={18} />
+              Dashboard
+            </Link>
+            <Link className="tool-action-button" to="/analytics">
+              <BarChart3 size={18} />
+              Analytics
+            </Link>
+          </div>
+        </article>
+      </section>
     </main>
   )
 }

@@ -7,6 +7,7 @@ import {
   Navigate,
   Route,
   Routes,
+  useNavigate,
   useParams,
 } from 'react-router-dom'
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js'
@@ -17,19 +18,20 @@ import {
   CheckCircle2,
   ClipboardCheck,
   Clock3,
+  Eye,
   FileText,
   Gauge,
   HeartPulse,
   Library,
   LayoutDashboard,
-  Lock,
   LogOut,
   PlayCircle,
   RefreshCw,
   Search,
   Settings2,
   ShieldCheck,
-  Sparkles,
+  ThumbsUp,
+  Users,
   Workflow,
   XCircle,
 } from 'lucide-react'
@@ -176,6 +178,35 @@ type ContentPlanUpdate = {
   created_at?: string | null
 }
 
+type SocialPlatform = 'facebook' | 'instagram' | 'youtube'
+type SocialMetricGroup = 'followers' | 'engagement' | 'reach'
+
+type SocialMetricDefinition = {
+  group: SocialMetricGroup
+  platform: SocialPlatform
+  label: string
+  names: string[]
+  engine: string
+}
+
+type MetricMovement = {
+  label: string
+  platform: SocialPlatform
+  value: number | null
+  delta: number | null
+  state: 'up' | 'down' | 'flat' | 'baseline' | 'unavailable'
+  latestDate?: string
+  previousDate?: string
+  metricNames: string[]
+}
+
+type TopContentSummary = {
+  platform: string
+  title: string
+  reason: string
+  detail: string
+}
+
 type AppData = {
   clients: Client[]
   engineRuns: EngineRun[]
@@ -206,13 +237,16 @@ const supabase = hasSupabaseConfig ? createClient(supabaseUrl, supabaseAnonKey) 
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/engine-outputs', label: 'Engine Outputs', icon: Library },
+  { to: '/analytics', label: 'Analytics', icon: BarChart3 },
   { to: '/approvals', label: 'Approval Queue', icon: ClipboardCheck },
   { to: '/calendar', label: '30-Day Calendar', icon: CalendarDays },
-  { to: '/analytics', label: 'Analytics', icon: BarChart3 },
   { to: '/strategy', label: 'Strategy Report', icon: FileText },
-  { to: '/logs', label: 'Workflow Logs', icon: Workflow },
+  { to: '/admin-workflow', label: 'Admin / Workflow Health', icon: Workflow },
   { to: '/controls', label: 'Manual Controls', icon: Settings2 },
+]
+
+const advancedNavItems = [
+  { to: '/engine-outputs', label: 'Intelligence Library', icon: Library },
 ]
 
 const engineCatalog: Array<{ engine: string; category: EngineCategory }> = [
@@ -233,6 +267,72 @@ const engineCatalog: Array<{ engine: string; category: EngineCategory }> = [
 ]
 
 const libraryEngines = engineCatalog.map((entry) => entry.engine)
+
+const socialMetricDefinitions: SocialMetricDefinition[] = [
+  {
+    group: 'followers',
+    platform: 'facebook',
+    label: 'Facebook followers',
+    engine: 'facebook_intelligence',
+    names: ['facebook_followers_count', 'page_followers', 'page_follows', 'page_follows_unique', 'page_fans', 'fan_count', 'followers_count'],
+  },
+  {
+    group: 'followers',
+    platform: 'instagram',
+    label: 'Instagram followers',
+    engine: 'instagram_intelligence',
+    names: ['instagram_followers_count', 'followers_count', 'profile_followers'],
+  },
+  {
+    group: 'followers',
+    platform: 'youtube',
+    label: 'YouTube subscribers',
+    engine: 'youtube_intelligence',
+    names: ['youtube_subscribers_count', 'subscriber_count', 'subscribers_count'],
+  },
+  {
+    group: 'engagement',
+    platform: 'facebook',
+    label: 'Facebook engagement',
+    engine: 'facebook_intelligence',
+    names: ['total_reactions', 'total_comments', 'total_shares', 'average_engagement_per_post', 'page_post_engagements', 'post_engaged_users'],
+  },
+  {
+    group: 'engagement',
+    platform: 'instagram',
+    label: 'Instagram interactions',
+    engine: 'instagram_intelligence',
+    names: ['instagram_total_interactions', 'instagram_total_likes', 'instagram_total_comments', 'instagram_total_shares', 'instagram_total_saves', 'total_interactions', 'likes', 'comments', 'shares', 'saves'],
+  },
+  {
+    group: 'engagement',
+    platform: 'youtube',
+    label: 'YouTube engagement',
+    engine: 'youtube_intelligence',
+    names: ['youtube_total_likes', 'youtube_total_comments', 'total_likes', 'total_comments', 'likes', 'comments'],
+  },
+  {
+    group: 'reach',
+    platform: 'facebook',
+    label: 'Facebook views / reach',
+    engine: 'facebook_intelligence',
+    names: ['page_views_total', 'facebook_page_views', 'facebook_reach', 'post_impressions', 'post_impressions_unique'],
+  },
+  {
+    group: 'reach',
+    platform: 'instagram',
+    label: 'Instagram reach',
+    engine: 'instagram_intelligence',
+    names: ['instagram_total_reach', 'instagram_reach', 'reach', 'impressions', 'views'],
+  },
+  {
+    group: 'reach',
+    platform: 'youtube',
+    label: 'YouTube views',
+    engine: 'youtube_intelligence',
+    names: ['youtube_total_recent_views', 'youtube_total_views', 'views', 'view_count', 'total_views'],
+  },
+]
 
 const emptyData: AppData = {
   clients: [],
@@ -255,6 +355,7 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/tools" element={<ToolsPage />} />
         <Route path="/tools/vip" element={<SignInPage />} />
+        <Route path="/login" element={<Navigate to="/tools/vip" replace />} />
         <Route path="/*" element={<AuthenticatedRoutes />} />
       </Routes>
     </BrowserRouter>
@@ -288,7 +389,6 @@ function AuthenticatedRoutes() {
 
   return (
     <Routes>
-      <Route path="/login" element={<Login session={session} />} />
       <Route
         path="/*"
         element={
@@ -301,7 +401,8 @@ function AuthenticatedRoutes() {
               <Route path="/calendar" element={<CalendarPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/strategy" element={<StrategyPage />} />
-              <Route path="/logs" element={<LogsPage />} />
+              <Route path="/admin-workflow" element={<AdminWorkflowHealthPage />} />
+              <Route path="/logs" element={<Navigate to="/admin-workflow" replace />} />
               <Route path="/controls" element={<ControlsPage />} />
               <Route path="*" element={<Navigate to="/dashboard" replace />} />
             </Routes>
@@ -320,7 +421,7 @@ function ProtectedShell({ session, children }: { session: Session | null; childr
   const selectedClient = data.clients.find((client) => client.id === effectiveClientId) || data.clients[0]
 
   if (!session && hasSupabaseConfig) {
-    return <Navigate to="/login" replace />
+    return <Navigate to="/tools/vip" replace />
   }
 
   return (
@@ -345,6 +446,15 @@ function ProtectedShell({ session, children }: { session: Session | null; childr
           </Link>
           <nav className="nav-list">
             {navItems.map((item) => (
+              <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? 'active' : '')}>
+                <item.icon size={18} />
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+          <nav className="nav-list nav-list-advanced" aria-label="Advanced">
+            <span className="nav-kicker">Advanced</span>
+            {advancedNavItems.map((item) => (
               <NavLink key={item.to} to={item.to} className={({ isActive }) => (isActive ? 'active' : '')}>
                 <item.icon size={18} />
                 {item.label}
@@ -583,62 +693,6 @@ async function safeSelect<T>(
   return (data || []) as T[]
 }
 
-function Login({ session }: { session: Session | null }) {
-  const [email, setEmail] = useState('')
-  const [message, setMessage] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  if (session) return <Navigate to="/dashboard" replace />
-
-  async function signIn(event: React.FormEvent) {
-    event.preventDefault()
-    if (!supabase) {
-      setMessage('Add Supabase environment variables before sign-in can run.')
-      return
-    }
-    setLoading(true)
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin },
-    })
-    setMessage(error ? error.message : 'Magic link sent. Check your email to continue.')
-    setLoading(false)
-  }
-
-  return (
-    <main className="login-page">
-      <section className="login-panel">
-        <div className="brand large">
-          <span className="brand-mark">
-            <HeartPulse size={24} />
-          </span>
-          <span>
-            <strong>VIP Social Media Intelligence Dashboard</strong>
-            <small>Aayu Geriatrics operating console</small>
-          </span>
-        </div>
-        <form onSubmit={signIn} className="login-form">
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            type="email"
-            placeholder="operator@aayu.example"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-          <button type="submit" disabled={loading || !hasSupabaseConfig}>
-            <Lock size={17} />
-            {loading ? 'Sending link' : 'Send magic link'}
-          </button>
-        </form>
-        {!hasSupabaseConfig && <SetupNotice compact />}
-        {message && <p className="form-message">{message}</p>}
-      </section>
-    </main>
-  )
-}
-
 function Topbar({
   clients,
   selectedClientId,
@@ -654,6 +708,13 @@ function Topbar({
   loading: boolean
   session: Session | null
 }) {
+  const navigate = useNavigate()
+
+  async function signOut() {
+    await supabase?.auth.signOut()
+    navigate('/tools/vip', { replace: true })
+  }
+
   return (
     <header className="topbar">
       <div>
@@ -676,7 +737,7 @@ function Topbar({
           <RefreshCw size={17} className={loading ? 'spin' : ''} />
         </button>
         {session && (
-          <button className="icon-button" type="button" onClick={() => supabase?.auth.signOut()} aria-label="Sign out">
+          <button className="icon-button" type="button" onClick={signOut} aria-label="Sign out">
             <LogOut size={17} />
           </button>
         )}
@@ -687,66 +748,66 @@ function Topbar({
 
 function Dashboard() {
   const data = useVip()
-  const latestStrategy = latestOutput(data.outputs, 'social_media_strategy')
-  const latestDaily = data.dailyRuns[0]
-  const failedEngines = data.engineRuns.filter((run) => isBadStatus(run.status))
   const productionReady = data.items.filter((item) => item.status === 'production_ready')
   const pendingApprovals = productionReady.filter((item) => !['approved', 'posted'].includes(normalize(item.approval_status))).length
-  const tomorrowItems = data.items.filter((item) => isTomorrow(item.planned_date))
-  const platformPriority = inferPlatformPriority(data.outputs, data.metrics)
-  const healthScore = latestStrategy?.confidence_score ? Math.round(latestStrategy.confidence_score * 100) : null
+  const tomorrowItem = findTomorrowContent(data.items)
+  const topContent = buildTopContent(data.outputs, data.items)
+  const followerMetrics = buildMetricGroup(data.metrics, 'followers')
+  const engagementMetrics = buildMetricGroup(data.metrics, 'engagement')
+  const reachMetrics = buildMetricGroup(data.metrics, 'reach')
 
   return (
-    <Page title="Dashboard" subtitle="Daily readiness, strategy health, and production blockers for the selected client.">
-      <section className="metric-grid">
-        <MetricCard icon={Gauge} label="Strategy health" value={healthScore === null ? '-' : `${healthScore}%`} detail={latestStrategy?.summary || 'No strategy output visible yet.'} />
-        <MetricCard icon={ShieldCheck} label="Readiness" value={failedEngines.length ? 'Attention' : 'Operational'} detail={failedEngines.length ? `${failedEngines.length} engine warning(s)` : 'No failed engine runs in the latest window.'} tone={failedEngines.length ? 'warning' : 'good'} />
-        <MetricCard icon={Sparkles} label="Platform priority" value={platformPriority} detail="Derived from recent intelligence outputs and metric volume." />
-        <MetricCard icon={ClipboardCheck} label="Pending approvals" value={String(pendingApprovals)} detail={`${productionReady.length} production-ready item(s).`} tone={pendingApprovals ? 'warning' : 'good'} />
+    <Page title="Dashboard" subtitle="Simple social media performance for the latest available run.">
+      <section className="social-metric-grid">
+        <SocialMetricCard icon={Users} label="Followers" rows={followerMetrics} />
+        <SocialMetricCard icon={ThumbsUp} label="Engagement" rows={engagementMetrics} />
+        <SocialMetricCard icon={Eye} label="Views / Reach" rows={reachMetrics} />
       </section>
 
       <section className="split-grid">
-        <Panel title="Tomorrow Content Readiness" action={<Link to="/approvals">Open approvals</Link>}>
-          {tomorrowItems.length ? (
-            <div className="stack">
-              {tomorrowItems.map((item) => (
-                <ContentRow key={item.id} item={item} compact />
+        <Panel title="Top Content">
+          {topContent.length ? (
+            <div className="top-content-list">
+              {topContent.slice(0, 2).map((item, index) => (
+                <article className="insight-row" key={`${item.platform}-${index}`}>
+                  <div>
+                    <StatusBadge value={item.platform} />
+                    <strong>{item.title}</strong>
+                    <p>{item.reason}</p>
+                  </div>
+                  <details>
+                    <summary>Know more</summary>
+                    <p>{item.detail}</p>
+                  </details>
+                </article>
               ))}
             </div>
           ) : (
-            <EmptyState title="No content planned for tomorrow" detail="Daily content generation has not produced tomorrow-ready items visible to this user." />
+            <EmptyState title="No top content visible" detail="Content performance output has not exposed a safe summary yet." />
           )}
         </Panel>
-        <Panel title="Latest Daily Operating Run">
-          {latestDaily ? (
-            <dl className="definition-grid">
-              <dt>Status</dt>
-              <dd><StatusBadge value={latestDaily.status} /></dd>
-              <dt>Started</dt>
-              <dd>{formatDateTime(latestDaily.started_at)}</dd>
-              <dt>Completed</dt>
-              <dd>{formatDateTime(latestDaily.completed_at)}</dd>
-              <dt>Failed engines</dt>
-              <dd>{engineNamesText(latestDaily.engines_failed)}</dd>
-            </dl>
+        <Panel title="Tomorrow's Post" action={<Link to="/approvals">Approval Queue</Link>}>
+          {tomorrowItem ? (
+            <article className="tomorrow-card">
+              <div>
+                <StatusBadge value={tomorrowItem.platform || 'platform pending'} />
+                <h3>{tomorrowItem.topic || 'Untitled content'}</h3>
+                <p>{tomorrowItem.content_format || 'Format pending'}</p>
+              </div>
+              <StatusBadge value={tomorrowItem.approval_status || tomorrowItem.status || 'pending'} />
+              <Link className="text-link" to={`/content/${tomorrowItem.id}`}>Open detail</Link>
+            </article>
           ) : (
-            <EmptyState title="No daily run visible" detail="The active n8n workflow may not have emitted a readable run row yet." />
+            <EmptyState title="No post planned for tomorrow" detail="The next production-ready item will appear here when visible through RLS." />
           )}
         </Panel>
       </section>
 
-      <Panel title="Latest Engine Runs" action={<Link to="/logs">View logs</Link>}>
-        <DataTable
-          columns={['Engine', 'Status', 'Started', 'Completed', 'Error']}
-          rows={data.engineRuns.slice(0, 8).map((run) => [
-            titleize(run.engine_name),
-            <StatusBadge value={run.status} />,
-            formatDateTime(run.started_at),
-            formatDateTime(run.completed_at),
-            run.error_message || '-',
-          ])}
-          empty="No engine runs are visible through RLS yet."
-        />
+      <Panel title="Approvals">
+        <div className="approval-summary">
+          <MetricCard icon={ClipboardCheck} label="Pending approvals" value={String(pendingApprovals)} detail={`${productionReady.length} production-ready item(s).`} tone={pendingApprovals ? 'warning' : 'good'} />
+          <Link className="quiet-action" to="/approvals">Review queue</Link>
+        </div>
       </Panel>
     </Page>
   )
@@ -789,7 +850,7 @@ function EngineOutputsPage() {
   const categories = Array.from(new Set(engineCatalog.map((entry) => entry.category)))
 
   return (
-    <Page title="Engine Outputs" subtitle="Latest intelligence outputs, run status, and metrics for every engine.">
+    <Page title="Intelligence Library" subtitle="Advanced engine summaries and details for operators.">
       <div className="toolbar library-toolbar">
         <Filter label="Category" value={category} values={categories} onChange={setCategory} />
         <Filter label="Engine" value={engine} values={libraryEngines} onChange={setEngine} />
@@ -1122,11 +1183,14 @@ function ApprovalCard({ item }: { item: ContentItem }) {
             <StatusBadge value={item.approval_status || 'approval pending'} />
           </div>
         </div>
-        <p className="caption">{item.caption || item.caption_direction || item.creative_brief || 'Caption copy has not been generated yet.'}</p>
-        <ContentMeta item={item} />
-        <Link className="text-link" to={`/content/${item.id}`}>Open full detail</Link>
+        <div className="approval-list-fields">
+          <span>{item.platform || 'Platform pending'}</span>
+          <span>{item.content_format || 'Format pending'}</span>
+          <span>{formatDate(item.planned_date)}</span>
+          <span>{item.approval_status || item.status || 'pending'}</span>
+        </div>
+        <Link className="text-link" to={`/content/${item.id}`}>Open caption and script</Link>
       </div>
-      <ActionRail />
     </article>
   )
 }
@@ -1186,6 +1250,7 @@ function DailyContentDetail() {
   return (
     <Page title="Daily Content Detail" subtitle={item.topic || 'Production package'}>
       <Panel title="Review Package">
+        <ContentMeta item={item} />
         <div className="detail-grid">
           {fields.map(([label, value]) => (
             <div key={label} className="detail-field">
@@ -1234,17 +1299,20 @@ function CalendarPage() {
 
 function AnalyticsPage() {
   const data = useVip()
-  const groups = ['facebook', 'instagram', 'youtube', 'cross-platform']
+  const groups: SocialPlatform[] = ['facebook', 'instagram', 'youtube']
+  const discoveredMetricNames = uniqueOptions(data.metrics.map((metric) => metric.metric_name))
 
   return (
-    <Page title="Analytics Overview" subtitle="Normalized metrics and intelligence summaries, grouped by platform.">
-      <div className="tabs-grid">
-        {groups.map((group) => {
-          const metrics = data.metrics.filter((metric) => analyticsGroupMatch(group, metric.source_platform, metric.engine_name))
-          const outputs = data.outputs.filter((output) => analyticsGroupMatch(group, output.source_platform, output.engine_name))
-          return <AnalyticsCard key={group} title={titleize(group)} metrics={metrics} outputs={outputs} />
-        })}
+    <Page title="Analytics" subtitle="Platform performance with latest-vs-previous-run movement where comparable metrics exist.">
+      <div className="platform-analytics-grid">
+        {groups.map((group) => (
+          <PlatformAnalyticsCard key={group} platform={group} metrics={data.metrics} outputs={data.outputs} />
+        ))}
       </div>
+      <details className="details-panel">
+        <summary>View discovered metric names</summary>
+        <p className="muted">{discoveredMetricNames.length ? discoveredMetricNames.join(', ') : 'No normalized metric names are visible yet.'}</p>
+      </details>
     </Page>
   )
 }
@@ -1254,13 +1322,24 @@ function StrategyPage() {
   const strategy = latestOutput(data.outputs, 'social_media_strategy')
 
   return (
-    <Page title="Strategy Report" subtitle="Latest social media strategy intelligence output.">
+    <Page title="Strategy Report" subtitle="Concise direction from the latest social media strategy output.">
       {strategy ? (
         <Panel title={`${titleize(strategy.engine_name)} / ${formatDate(strategy.report_date)}`}>
           <p className="report-summary">{strategy.summary || 'No summary text was provided.'}</p>
-          <JsonList title="Key insights" value={strategy.key_insights} />
-          <JsonList title="Recommendations" value={strategy.recommendations} />
-          <JsonList title="Next actions" value={strategy.next_actions} />
+          <div className="specific-grid strategy-brief">
+            {['platform_priority', 'content_priorities', 'next_actions', 'risks_or_warnings'].map((key) => (
+              <div key={key} className="detail-field">
+                <span>{titleize(key)}</span>
+                <p>{renderCompactValue(findOutputValue(strategy, key))}</p>
+              </div>
+            ))}
+          </div>
+          <details className="details-panel">
+            <summary>Know more</summary>
+            <JsonList title="Key insights" value={strategy.key_insights} />
+            <JsonList title="Recommendations" value={strategy.recommendations} />
+            <JsonList title="Next actions" value={strategy.next_actions} />
+          </details>
         </Panel>
       ) : (
         <EmptyState title="Strategy output not available" detail="The social_media_strategy engine is currently marked as a placeholder in the workflow source." />
@@ -1269,11 +1348,48 @@ function StrategyPage() {
   )
 }
 
-function LogsPage() {
+function AdminWorkflowHealthPage() {
   const data = useVip()
+  const latestDaily = data.dailyRuns[0]
+  const latestStrategy = latestOutput(data.outputs, 'social_media_strategy')
+  const failedEngines = data.engineRuns.filter((run) => isBadStatus(run.status))
+  const healthScore = findOutputValue(latestStrategy, 'strategy_health_score') || latestStrategy?.confidence_score
+  const readiness = findOutputValue(latestStrategy, 'readiness_status') || (failedEngines.length ? 'attention' : 'operational')
+  const metricErrors = data.dailyRuns.reduce((total, run) => {
+    const count = findNestedValue(run.metadata, 'metric_errors_count')
+    return total + (typeof count === 'number' ? count : Number(count || 0))
+  }, 0)
 
   return (
-    <Page title="Workflow Logs" subtitle="Daily operating runs and engine execution status.">
+    <Page title="Admin / Workflow Health" subtitle="Operational run status, engine health, strategy readiness, and failures.">
+      <section className="metric-grid">
+        <MetricCard icon={Gauge} label="Strategy health" value={renderCompactValue(healthScore)} detail={latestStrategy?.summary || 'No strategy output visible yet.'} />
+        <MetricCard icon={ShieldCheck} label="Readiness" value={renderCompactValue(readiness)} detail={failedEngines.length ? `${failedEngines.length} engine warning(s)` : 'No failed engine runs in the latest window.'} tone={failedEngines.length ? 'warning' : 'good'} />
+        <MetricCard icon={Workflow} label="Latest run" value={latestDaily?.status || '-'} detail={latestDaily ? formatDateTime(latestDaily.started_at) : 'No daily operating run visible.'} />
+        <MetricCard icon={AlertTriangle} label="Metric errors" value={String(metricErrors)} detail="From daily run metadata when available." tone={metricErrors ? 'warning' : 'good'} />
+      </section>
+
+      {latestDaily && (
+        <Panel title="Latest Daily Operating Run">
+          <dl className="definition-grid">
+            <dt>Status</dt>
+            <dd><StatusBadge value={latestDaily.status} /></dd>
+            <dt>Started</dt>
+            <dd>{formatDateTime(latestDaily.started_at)}</dd>
+            <dt>Completed</dt>
+            <dd>{formatDateTime(latestDaily.completed_at)}</dd>
+            <dt>Completed engines</dt>
+            <dd>{engineNamesText(latestDaily.engines_completed)}</dd>
+            <dt>Failed engines</dt>
+            <dd>{engineNamesText(latestDaily.engines_failed)}</dd>
+            <dt>Child executions</dt>
+            <dd>{childExecutionText(latestDaily)}</dd>
+            <dt>Errors</dt>
+            <dd>{dailyRunErrorText(latestDaily)}</dd>
+          </dl>
+        </Panel>
+      )}
+
       <Panel title="Daily Operating Runs">
         <DataTable
           columns={['Status', 'Started', 'Completed', 'Completed engines', 'Failed engines', 'Child executions', 'Errors']}
@@ -1376,6 +1492,92 @@ function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: Componen
   )
 }
 
+function SocialMetricCard({ icon: Icon, label, rows }: { icon: ComponentType<{ size?: number }>; label: string; rows: MetricMovement[] }) {
+  return (
+    <article className="social-metric-card">
+      <div className="social-metric-heading">
+        <Icon size={20} />
+        <h3>{label}</h3>
+      </div>
+      <div className="social-metric-rows">
+        {rows.map((row) => (
+          <div key={row.label} className="social-metric-row">
+            <div>
+              <span>{row.label}</span>
+              <strong>{formatMetricValue(row.value)}</strong>
+            </div>
+            <TrendBadge movement={row} />
+          </div>
+        ))}
+      </div>
+      <p className="metric-context">{metricGroupContext(rows)}</p>
+    </article>
+  )
+}
+
+function TrendBadge({ movement }: { movement: MetricMovement }) {
+  const label = movement.state === 'baseline'
+    ? 'baseline'
+    : movement.state === 'unavailable'
+      ? 'unavailable'
+      : movement.delta === null
+        ? '0'
+        : `${movement.delta > 0 ? '+' : ''}${formatMetricValue(movement.delta)}`
+
+  return <span className={`trend-badge ${movement.state}`}>{label}</span>
+}
+
+function PlatformAnalyticsCard({ platform, metrics, outputs }: { platform: SocialPlatform; metrics: Metric[]; outputs: IntelligenceOutput[] }) {
+  const platformMetrics = dataForPlatform(metrics, platform)
+  const platformOutputs = outputs.filter((output) => analyticsGroupMatch(platform, output.source_platform, output.engine_name))
+  const latest = platformOutputs[0]
+  const rows = socialMetricDefinitions
+    .filter((definition) => definition.platform === platform)
+    .map((definition) => buildMetricMovement(metrics, definition))
+  const explanations = buildPlatformExplanations(platform, latest)
+
+  return (
+    <Panel title={titleize(platform)}>
+      <div className="analytics-kpi-list">
+        {rows.map((row) => (
+          <div key={row.label} className="analytics-kpi">
+            <span>{row.label.replace(`${titleize(platform)} `, '')}</span>
+            <strong>{formatMetricValue(row.value)}</strong>
+            <TrendBadge movement={row} />
+          </div>
+        ))}
+      </div>
+      <div className="explanation-list">
+        {explanations.map((entry) => (
+          <div key={entry.question} className="explanation-row">
+            <span>{entry.question}</span>
+            <p>{entry.answer}</p>
+          </div>
+        ))}
+      </div>
+      <details className="details-panel">
+        <summary>Know more</summary>
+        <p className="report-summary">{latest?.summary || 'No AI-style explanation is visible for this platform yet.'}</p>
+        <JsonList title="Recommendations" value={latest?.recommendations} />
+        <JsonList title="Next actions" value={latest?.next_actions} />
+      </details>
+      <details className="details-panel">
+        <summary>View details</summary>
+        <DataTable
+          columns={['Date', 'Metric', 'Value', 'Source']}
+          rows={platformMetrics.slice(0, 12).map((metric) => [
+            formatDate(metric.metric_date),
+            titleize(metric.metric_name),
+            metric.metric_value ?? '-',
+            titleize(metric.engine_name),
+          ])}
+          empty="No metrics visible for this platform."
+        />
+      </details>
+    </Panel>
+  )
+}
+
 function DataTable({ columns, rows, empty }: { columns: string[]; rows: ReactNode[][]; empty: string }) {
   if (!rows.length) return <EmptyState title={empty} />
   return (
@@ -1460,18 +1662,6 @@ function StatusBadge({ value }: { value: string }) {
   )
 }
 
-function ContentRow({ item, compact }: { item: ContentItem; compact?: boolean }) {
-  return (
-    <article className={compact ? 'content-row compact' : 'content-row'}>
-      <div>
-        <strong>{item.topic || 'Untitled content'}</strong>
-        <p>{item.platform || 'Platform pending'} / {item.content_format || 'Format pending'} / {formatDate(item.planned_date)}</p>
-      </div>
-      <StatusBadge value={item.approval_status || item.status || 'pending'} />
-    </article>
-  )
-}
-
 function ContentMeta({ item }: { item: ContentItem }) {
   const rows = [
     ['Angle', item.content_angle],
@@ -1509,28 +1699,6 @@ function CalendarTile({ item }: { item: ContentItem }) {
   )
 }
 
-function AnalyticsCard({ title, metrics, outputs }: { title: string; metrics: Metric[]; outputs: IntelligenceOutput[] }) {
-  const topMetrics = metrics.slice(0, 5)
-  return (
-    <Panel title={title}>
-      <div className="analytics-summary">
-        <MetricCard icon={BarChart3} label="Metric rows" value={String(metrics.length)} detail="Normalized metric rows visible through RLS." />
-        <MetricCard icon={FileText} label="Reports" value={String(outputs.length)} detail={outputs[0]?.summary || 'No recent intelligence summary visible.'} />
-      </div>
-      <DataTable
-        columns={['Date', 'Metric', 'Value', 'Engine']}
-        rows={topMetrics.map((metric) => [
-          formatDate(metric.metric_date),
-          titleize(metric.metric_name),
-          metric.metric_value ?? '-',
-          titleize(metric.engine_name),
-        ])}
-        empty="No metrics visible for this platform."
-      />
-    </Panel>
-  )
-}
-
 function JsonList({ title, value }: { title: string; value: unknown }) {
   const items = Array.isArray(value) ? value : value ? [value] : []
   return (
@@ -1559,6 +1727,163 @@ function Filter({ label, value, values, onChange }: { label: string; value: stri
       </select>
     </label>
   )
+}
+
+function buildMetricGroup(metrics: Metric[], group: SocialMetricGroup) {
+  return socialMetricDefinitions
+    .filter((definition) => definition.group === group)
+    .map((definition) => buildMetricMovement(metrics, definition))
+}
+
+function buildMetricMovement(metrics: Metric[], definition: SocialMetricDefinition): MetricMovement {
+  const matching = metrics.filter((metric) => metricMatchesDefinition(metric, definition))
+  const dates = Array.from(new Set(matching.map((metric) => metric.metric_date).filter(Boolean))).sort((a, b) => dateMillis(b) - dateMillis(a))
+  const latestDate = dates[0]
+  const previousDate = dates[1]
+  const latestValue = latestDate ? metricSnapshotValue(matching, latestDate) : null
+  const previousValue = previousDate ? metricSnapshotValue(matching, previousDate) : null
+  const delta = latestValue !== null && previousValue !== null ? latestValue - previousValue : null
+
+  return {
+    label: definition.label,
+    platform: definition.platform,
+    value: latestValue,
+    delta,
+    state: latestValue === null ? 'unavailable' : previousValue === null ? 'baseline' : delta && delta > 0 ? 'up' : delta && delta < 0 ? 'down' : 'flat',
+    latestDate,
+    previousDate,
+    metricNames: definition.names,
+  }
+}
+
+function metricMatchesDefinition(metric: Metric, definition: SocialMetricDefinition) {
+  const metricName = normalize(metric.metric_name)
+  const sourcePlatform = normalize(metric.source_platform)
+  return (
+    definition.names.some((name) => normalize(name) === metricName) &&
+    (normalize(metric.engine_name) === normalize(definition.engine) || sourcePlatform === definition.platform)
+  )
+}
+
+function metricSnapshotValue(metrics: Metric[], date: string) {
+  const latestByName = new Map<string, Metric>()
+  metrics
+    .filter((metric) => metric.metric_date === date && typeof metric.metric_value === 'number')
+    .sort((a, b) => dateMillis(b.created_at) - dateMillis(a.created_at))
+    .forEach((metric) => {
+      const key = normalize(metric.metric_name)
+      if (!latestByName.has(key)) latestByName.set(key, metric)
+    })
+
+  const values = Array.from(latestByName.values()).map((metric) => metric.metric_value).filter((value): value is number => typeof value === 'number')
+  if (!values.length) return null
+  return values.reduce((total, value) => total + value, 0)
+}
+
+function dataForPlatform(metrics: Metric[], platform: SocialPlatform) {
+  return metrics
+    .filter((metric) => analyticsGroupMatch(platform, metric.source_platform, metric.engine_name))
+    .sort((a, b) => dateMillis(b.created_at || b.metric_date) - dateMillis(a.created_at || a.metric_date))
+}
+
+function formatMetricValue(value: number | null) {
+  if (value === null || value === undefined || Number.isNaN(value)) return '-'
+  return new Intl.NumberFormat('en-IN', { maximumFractionDigits: value % 1 === 0 ? 0 : 1 }).format(value)
+}
+
+function metricGroupContext(rows: MetricMovement[]) {
+  const latest = rows.find((row) => row.latestDate)?.latestDate
+  const previous = rows.find((row) => row.previousDate)?.previousDate
+  if (latest && previous) return `${formatDate(latest)} vs ${formatDate(previous)}`
+  if (latest) return `${formatDate(latest)} baseline`
+  return 'No comparable metric rows visible'
+}
+
+function findTomorrowContent(items: ContentItem[]) {
+  return (
+    items.find((item) => isTomorrow(item.planned_date) && normalize(item.status) === 'production_ready') ||
+    items.find((item) => isTomorrow(item.planned_date)) ||
+    items
+      .filter((item) => item.planned_date && dateMillis(item.planned_date) >= startOfTodayMillis())
+      .sort((a, b) => dateMillis(a.planned_date) - dateMillis(b.planned_date))[0] ||
+    items.find((item) => normalize(item.status) === 'production_ready')
+  )
+}
+
+function buildTopContent(outputs: IntelligenceOutput[], items: ContentItem[]): TopContentSummary[] {
+  const performance = latestEngineOutput(outputs, 'content_performance')
+  const candidates = [
+    findOutputValue(performance, 'best_content_items'),
+    findOutputValue(performance, 'top_content'),
+    findOutputValue(performance, 'boost_candidates'),
+    findOutputValue(performance, 'top_5_posts'),
+  ].flatMap(arrayFromUnknown)
+
+  const fromOutput = candidates.map((candidate) => topContentFromUnknown(candidate)).filter((entry): entry is TopContentSummary => Boolean(entry))
+  if (fromOutput.length) return fromOutput
+
+  return items
+    .filter((item) => item.source_reason || item.priority_score)
+    .slice(0, 2)
+    .map((item) => ({
+      platform: titleize(item.platform),
+      title: item.topic || 'Untitled content',
+      reason: item.source_reason || `Priority score ${item.priority_score}`,
+      detail: item.caption_direction || item.creative_brief || item.caption || 'No additional detail visible.',
+    }))
+}
+
+function topContentFromUnknown(value: unknown): TopContentSummary | null {
+  if (!value) return null
+  if (typeof value === 'string') {
+    return { platform: 'Content', title: previewText(value), reason: 'Highlighted by content performance intelligence.', detail: value }
+  }
+
+  if (typeof value !== 'object') return null
+  const object = value as Record<string, unknown>
+  const platform = renderCompactValue(object.platform || object.source_platform || object.channel || 'Content')
+  const title = renderCompactValue(object.title || object.topic || object.message || object.post || object.content || 'Top content item')
+  const reason = renderCompactValue(object.reason || object.why || object.performance_reason || object.engagement || 'Performed better than nearby content.')
+  return {
+    platform,
+    title: previewText(title),
+    reason: previewText(reason),
+    detail: renderCompactValue(value),
+  }
+}
+
+function buildPlatformExplanations(platform: SocialPlatform, output?: IntelligenceOutput) {
+  return [
+    {
+      question: 'What gained followers?',
+      answer: explanationAnswer(output, ['follower_growth_reason', 'what_gained_followers', 'audience_growth_reason']),
+    },
+    {
+      question: 'What increased interactions?',
+      answer: explanationAnswer(output, ['interaction_driver', 'engagement_driver', 'what_increased_interactions']),
+    },
+    {
+      question: 'What gave more views?',
+      answer: explanationAnswer(output, ['views_driver', 'reach_driver', 'what_gave_more_views']),
+    },
+    {
+      question: 'What should we do next?',
+      answer: explanationAnswer(output, ['what_should_we_do_next', 'next_action', 'next_actions']) || `${titleize(platform)} needs more summarized intelligence before a clear action can be shown.`,
+    },
+  ]
+}
+
+function explanationAnswer(output: IntelligenceOutput | undefined, keys: string[]) {
+  for (const key of keys) {
+    const value = findOutputValue(output, key)
+    if (value) return previewText(renderCompactValue(value))
+  }
+  return output?.summary ? previewText(output.summary) : 'No explanation visible in the latest intelligence output.'
+}
+
+function arrayFromUnknown(value: unknown): unknown[] {
+  if (!value) return []
+  return Array.isArray(value) ? value : [value]
 }
 
 function latestOutput(outputs: IntelligenceOutput[], engineName: string) {
@@ -1598,6 +1923,12 @@ function dateMillis(value?: string | null) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function startOfTodayMillis() {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return today.getTime()
+}
+
 function analyticsGroupMatch(group: string, platform?: string | null, engineName?: string | null) {
   const normalizedGroup = normalize(group)
   const normalizedPlatform = normalize(platform)
@@ -1627,18 +1958,6 @@ function platformFromEngine(engine: string) {
   if (engine.startsWith('youtube')) return 'youtube'
   if (engine === 'content_performance') return 'cross_platform_content'
   return 'cross_platform'
-}
-
-function inferPlatformPriority(outputs: IntelligenceOutput[], metrics: Metric[]) {
-  const fromOutputs = outputs.find((output) => normalize(output.source_platform) && normalize(output.source_platform) !== 'cross-platform')
-  if (fromOutputs?.source_platform) return titleize(fromOutputs.source_platform)
-  const counts = metrics.reduce<Record<string, number>>((acc, metric) => {
-    const key = normalize(metric.source_platform || 'cross-platform')
-    acc[key] = (acc[key] || 0) + 1
-    return acc
-  }, {})
-  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]?.[0]
-  return top ? titleize(top) : 'Facebook'
 }
 
 function normalize(value?: string | null) {
@@ -1727,7 +2046,8 @@ function sanitizeForDisplay(value: unknown): unknown {
   )
 }
 
-function findOutputValue(output: IntelligenceOutput, key: string) {
+function findOutputValue(output: IntelligenceOutput | undefined, key: string) {
+  if (!output) return null
   const sources = [
     output.input_sources,
     output.key_insights,
