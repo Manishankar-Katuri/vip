@@ -150,13 +150,13 @@
   width: min(100%, 1120px);
   margin: 0 auto;
   display: grid;
-  grid-template-columns: 1.4fr 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 16px;
   padding: 42px 24px 80px;
 }
 
 .tool-showcase-card {
-  min-height: 300px;
+  min-height: 420px;
   position: relative;
   overflow: hidden;
   display: flex;
@@ -167,7 +167,9 @@
   border-radius: 8px;
   color: #ffffff;
   text-decoration: none;
-  background: rgba(255, 255, 255, 0.045);
+  background-color: rgba(255, 255, 255, 0.045);
+  background-size: cover;
+  background-position: center;
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.24);
   transition:
     transform 300ms ease,
@@ -202,6 +204,25 @@
 
 .tool-showcase-card > * {
   position: relative;
+}
+
+.tool-showcase-card--vip {
+  justify-content: space-between;
+  background-position: center right;
+}
+
+.tool-showcase-card--vip::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 0.46));
+}
+
+.tool-showcase-card__content {
+  max-width: 660px;
+  display: grid;
+  gap: 18px;
 }
 
 .tool-showcase-card__icon {
@@ -254,6 +275,40 @@
   margin-top: auto;
   color: #ffffff;
   font-weight: 800;
+}
+
+.tool-action-grid {
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.tool-action-button {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 16px;
+  border: 1px solid rgba(217, 249, 157, 0.22);
+  border-radius: 999px;
+  color: #ffffff;
+  background: rgba(0, 0, 0, 0.44);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 900;
+  backdrop-filter: blur(12px);
+}
+
+.tool-action-button.primary {
+  color: #08110f;
+  background: #d9f99d;
+}
+
+.tool-action-button:hover {
+  border-color: rgba(217, 249, 157, 0.46);
+  transform: translateY(-1px);
 }
 
 .tool-showcase-card--soon {

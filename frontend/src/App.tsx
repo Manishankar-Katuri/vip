@@ -7,6 +7,7 @@ import {
   Navigate,
   Route,
   Routes,
+  useNavigate,
   useParams,
 } from 'react-router-dom'
 import { createClient, type Session, type SupabaseClient } from '@supabase/supabase-js'
@@ -23,7 +24,6 @@ import {
   HeartPulse,
   Library,
   LayoutDashboard,
-  Lock,
   LogOut,
   PlayCircle,
   RefreshCw,
@@ -355,6 +355,7 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         <Route path="/tools" element={<ToolsPage />} />
         <Route path="/tools/vip" element={<SignInPage />} />
+        <Route path="/login" element={<Navigate to="/tools/vip" replace />} />
         <Route path="/*" element={<AuthenticatedRoutes />} />
       </Routes>
     </BrowserRouter>
@@ -388,7 +389,6 @@ function AuthenticatedRoutes() {
 
   return (
     <Routes>
-      <Route path="/login" element={<Login session={session} />} />
       <Route
         path="/*"
         element={
@@ -421,7 +421,7 @@ function ProtectedShell({ session, children }: { session: Session | null; childr
   const selectedClient = data.clients.find((client) => client.id === effectiveClientId) || data.clients[0]
 
   if (!session && hasSupabaseConfig) {
-    return <Navigate to="/login" replace />
+    return <Navigate to="/tools/vip" replace />
   }
 
   return (
@@ -693,62 +693,6 @@ async function safeSelect<T>(
   return (data || []) as T[]
 }
 
-function Login({ session }: { session: Session | null }) {
-  const [email, setEmail] = useState('')
-  const [message, setMessage] = useState('')
-  const [loading, setLoading] = useState(false)
-
-  if (session) return <Navigate to="/dashboard" replace />
-
-  async function signIn(event: React.FormEvent) {
-    event.preventDefault()
-    if (!supabase) {
-      setMessage('Add Supabase environment variables before sign-in can run.')
-      return
-    }
-    setLoading(true)
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: { emailRedirectTo: window.location.origin },
-    })
-    setMessage(error ? error.message : 'Magic link sent. Check your email to continue.')
-    setLoading(false)
-  }
-
-  return (
-    <main className="login-page">
-      <section className="login-panel">
-        <div className="brand large">
-          <span className="brand-mark">
-            <HeartPulse size={24} />
-          </span>
-          <span>
-            <strong>VIP Social Media Intelligence Dashboard</strong>
-            <small>Aayu Geriatrics operating console</small>
-          </span>
-        </div>
-        <form onSubmit={signIn} className="login-form">
-          <label htmlFor="email">Email</label>
-          <input
-            id="email"
-            type="email"
-            placeholder="operator@aayu.example"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-          <button type="submit" disabled={loading || !hasSupabaseConfig}>
-            <Lock size={17} />
-            {loading ? 'Sending link' : 'Send magic link'}
-          </button>
-        </form>
-        {!hasSupabaseConfig && <SetupNotice compact />}
-        {message && <p className="form-message">{message}</p>}
-      </section>
-    </main>
-  )
-}
-
 function Topbar({
   clients,
   selectedClientId,
@@ -764,6 +708,13 @@ function Topbar({
   loading: boolean
   session: Session | null
 }) {
+  const navigate = useNavigate()
+
+  async function signOut() {
+    await supabase?.auth.signOut()
+    navigate('/tools/vip', { replace: true })
+  }
+
   return (
     <header className="topbar">
       <div>
@@ -786,7 +737,7 @@ function Topbar({
           <RefreshCw size={17} className={loading ? 'spin' : ''} />
         </button>
         {session && (
-          <button className="icon-button" type="button" onClick={() => supabase?.auth.signOut()} aria-label="Sign out">
+          <button className="icon-button" type="button" onClick={signOut} aria-label="Sign out">
             <LogOut size={17} />
           </button>
         )}
