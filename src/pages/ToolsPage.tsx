@@ -23,40 +23,39 @@ export function ToolsPage() {
         description="VIP turns social, local, competitor, trend, and content-performance signals into a coordinated operating system for healthcare marketing teams."
         primaryImageSrc={mockupImages.primary}
         secondaryImageSrc={mockupImages.secondary}
+        mockupSlot={
+          <article
+            className="tool-showcase-card tool-showcase-card--vip tool-showcase-card--hero"
+            style={{ backgroundImage: `linear-gradient(90deg, rgba(7, 13, 12, 0.9), rgba(7, 13, 12, 0.62), rgba(7, 13, 12, 0.22)), url(${heroImage})` }}
+          >
+            <div className="tool-showcase-card__content">
+              <span className="tool-showcase-card__icon">
+                <HeartPulse size={24} />
+              </span>
+              <span className="tool-showcase-card__kicker">Available now</span>
+              <h1>Vertical Intelligence Platform</h1>
+              <p>
+                Social media intelligence, planning, analytics, and workflow operations for healthcare brands.
+              </p>
+            </div>
+            <div className="tool-action-grid" aria-label="VIP actions">
+              <Link className="tool-action-button primary" to="/tools/vip">
+                <LogIn size={18} />
+                Sign in
+                <ArrowRight size={18} />
+              </Link>
+              <Link className="tool-action-button" to="/dashboard">
+                <LayoutDashboard size={18} />
+                Dashboard
+              </Link>
+              <Link className="tool-action-button" to="/analytics">
+                <BarChart3 size={18} />
+                Analytics
+              </Link>
+            </div>
+          </article>
+        }
       />
-
-      <section className="tools-page__catalog" aria-label="Available tools">
-        <article
-          className="tool-showcase-card tool-showcase-card--vip"
-          style={{ backgroundImage: `linear-gradient(90deg, rgba(7, 13, 12, 0.88), rgba(7, 13, 12, 0.54), rgba(7, 13, 12, 0.16)), url(${heroImage})` }}
-        >
-          <div className="tool-showcase-card__content">
-            <span className="tool-showcase-card__icon">
-              <HeartPulse size={24} />
-            </span>
-            <span className="tool-showcase-card__kicker">Available now</span>
-            <h1>Vertical Intelligence Platform</h1>
-            <p>
-              Social media intelligence, planning, analytics, and workflow operations for healthcare brands.
-            </p>
-          </div>
-          <div className="tool-action-grid" aria-label="VIP actions">
-            <Link className="tool-action-button primary" to="/tools/vip">
-              <LogIn size={18} />
-              Sign in
-              <ArrowRight size={18} />
-            </Link>
-            <Link className="tool-action-button" to="/dashboard">
-              <LayoutDashboard size={18} />
-              Dashboard
-            </Link>
-            <Link className="tool-action-button" to="/analytics">
-              <BarChart3 size={18} />
-              Analytics
-            </Link>
-          </div>
-        </article>
-      </section>
     </main>
   )
 }

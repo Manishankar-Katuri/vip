@@ -211,6 +211,16 @@
   background-position: center right;
 }
 
+.tool-showcase-card--hero {
+  width: min(100%, 620px);
+  min-height: 520px;
+  margin: 0 auto;
+  padding: 28px;
+  border-color: rgba(217, 249, 157, 0.22);
+  border-radius: 8px;
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.42);
+}
+
 .tool-showcase-card--vip::after {
   content: "";
   position: absolute;
@@ -223,6 +233,10 @@
   max-width: 660px;
   display: grid;
   gap: 18px;
+}
+
+.tool-showcase-card--hero .tool-showcase-card__content {
+  max-width: 480px;
 }
 
 .tool-showcase-card__icon {
@@ -259,6 +273,10 @@
   letter-spacing: 0;
 }
 
+.tool-showcase-card--hero h1 {
+  font-size: clamp(40px, 5vw, 72px);
+}
+
 .tool-showcase-card p {
   max-width: 640px;
   margin: 0;
@@ -282,6 +300,10 @@
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.tool-showcase-card--hero .tool-action-grid {
+  max-width: 100%;
 }
 
 .tool-action-button {
