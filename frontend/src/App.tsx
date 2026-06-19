@@ -22,6 +22,7 @@ import {
   Clock3,
   Eye,
   FileText,
+  Flame,
   Gauge,
   HeartPulse,
   Library,
@@ -47,6 +48,8 @@ import { SignInPage } from './components/ui/sign-in-flow-1'
 import { BadgeDelta } from './components/ui/badge-delta'
 import { PointsChart } from './components/ui/points-chart'
 import type { PointsChartDataPoint } from './components/ui/points-chart'
+import { StreakCard } from './components/ui/streak-card'
+import type { StreakPeriod } from './components/ui/streak-calendar'
 import './App.css'
 
 declare const __SUPABASE_URL__: string | undefined
@@ -163,6 +166,34 @@ type SocialAnalyticsSummary = {
   created_at?: string | null
 }
 
+type SocialStreak = {
+  id: string
+  client_id?: string | null
+  client_slug: string
+  current_streak: number
+  longest_streak: number
+  last_post_date?: string | null
+  last_checked_date?: string | null
+  last_status: 'continued' | 'reset' | 'no_post' | 'scan_failed' | 'unknown' | string
+  platforms_posted?: string[] | string | null
+  post_count?: number | null
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+type SocialStreakLog = {
+  id: string
+  client_id?: string | null
+  client_slug: string
+  scan_date: string
+  target_post_date: string
+  posted_yesterday: boolean
+  platforms_posted?: string[] | string | null
+  post_count?: number | null
+  status: string
+  created_at?: string | null
+}
+
 type ContentPlan = {
   id: string
   client_id: string
@@ -260,6 +291,8 @@ type AppData = {
   metrics: Metric[]
   snapshots: SocialAnalyticsSnapshot[]
   analyticsSummaries: SocialAnalyticsSummary[]
+  socialStreaks: SocialStreak[]
+  socialStreakLogs: SocialStreakLog[]
   plans: ContentPlan[]
   items: ContentItem[]
   updates: ContentPlanUpdate[]
@@ -389,6 +422,8 @@ const emptyData: AppData = {
   metrics: [],
   snapshots: [],
   analyticsSummaries: [],
+  socialStreaks: [],
+  socialStreakLogs: [],
   plans: [],
   items: [],
   updates: [],
@@ -572,7 +607,7 @@ function useVipData(
       const clientRows = await loadClients(client, errors)
       const targetClientId = selectedClientId || clientRows[0]?.id || ''
 
-      const [engineRuns, dailyRuns, outputs, metrics, snapshots, analyticsSummaries, plans, items, updates] = await Promise.all([
+      const [engineRuns, dailyRuns, outputs, metrics, snapshots, analyticsSummaries, socialStreaks, socialStreakLogs, plans, items, updates] = await Promise.all([
         safeSelect<EngineRun>(
           client,
           'engine_runs',
@@ -652,6 +687,20 @@ function useVipData(
           (query) => query.eq('client_id', targetClientId).order('created_at', { ascending: false }).limit(60),
           targetClientId,
         ),
+        safeOptionalSelect<SocialStreak>(
+          client,
+          'client_social_streaks',
+          'id, client_id, client_slug, current_streak, longest_streak, last_post_date, last_checked_date, last_status, platforms_posted, post_count, created_at, updated_at',
+          (query) => query.eq('client_id', targetClientId).limit(1),
+          targetClientId,
+        ),
+        safeOptionalSelect<SocialStreakLog>(
+          client,
+          'client_social_streak_logs',
+          'id, client_id, client_slug, scan_date, target_post_date, posted_yesterday, platforms_posted, post_count, status, created_at',
+          (query) => query.eq('client_id', targetClientId).order('target_post_date', { ascending: false }).limit(14),
+          targetClientId,
+        ),
         safeSelect<ContentPlan>(
           client,
           'content_plans',
@@ -720,6 +769,8 @@ function useVipData(
           metrics,
           snapshots,
           analyticsSummaries,
+          socialStreaks,
+          socialStreakLogs,
           plans,
           items,
           updates,
@@ -872,6 +923,7 @@ function Dashboard() {
   return (
     <Page title="Dashboard" subtitle="Simple social media performance for the latest available run.">
       <section className="social-metric-grid">
+        <SocialPostingStreakWidget streak={data.socialStreaks[0]} logs={data.socialStreakLogs} loading={data.loading} />
         <SocialMetricCard icon={Users} label="Followers" rows={followerMetrics} />
         <SocialMetricCard icon={ThumbsUp} label="Engagement" rows={engagementMetrics} />
         <SocialMetricCard icon={Eye} label="Views / Reach" rows={reachMetrics} />
@@ -1679,6 +1731,70 @@ function MetricCard({ icon: Icon, label, value, detail, tone }: { icon: Componen
   )
 }
 
+function SocialPostingStreakWidget({ streak, logs, loading }: { streak?: SocialStreak; logs: SocialStreakLog[]; loading: boolean }) {
+  const postedPeriods: StreakPeriod[] = logs
+    .filter((log) => log.posted_yesterday && normalize(log.status) !== 'scan_failed')
+    .map((log) => ({ periodStart: log.target_post_date, periodEnd: log.target_post_date }))
+  const platforms = normalizeStringArray(streak?.platforms_posted)
+  const status = normalize(streak?.last_status)
+  const statusCopy = streakStatusCopy(status, streak)
+
+  if (loading) {
+    return (
+      <article className="social-streak-shell is-loading">
+        <div className="social-streak-loading-icon">
+          <Flame size={22} />
+        </div>
+        <span>Posting streak</span>
+        <strong>Loading</strong>
+        <p>Checking the latest persisted scan summary.</p>
+      </article>
+    )
+  }
+
+  if (!streak) {
+    return (
+      <article className="social-streak-shell">
+        <div className="social-streak-loading-icon">
+          <Flame size={22} />
+        </div>
+        <span>Posting streak</span>
+        <strong>Not started</strong>
+        <p>Based on connected social platform scans.</p>
+      </article>
+    )
+  }
+
+  return (
+    <StreakCard
+      className={`social-streak-card social-streak-card--${statusCopy.tone}`}
+      title="Posting streak"
+      actionLabel={statusCopy.label}
+      currentStreak={streak.current_streak}
+      longestStreak={streak.longest_streak}
+      total={streak.post_count || 0}
+      streak={postedPeriods}
+      showHowItWorks
+      howItWorksTitle="Based on connected social platform scans."
+      howItWorksItems={[
+        'Posting at least once yesterday keeps the streak active.',
+        'Manual reruns for the same target date are idempotent.',
+        'Failed scans keep the previous streak until activity can be verified.',
+      ]}
+      onActionClick={() => undefined}
+    >
+      <div className="social-streak-context">
+        <StatusBadge value={statusCopy.label} />
+        <p>{statusCopy.detail}</p>
+        <small>
+          {platforms.length ? platforms.map(titleize).join(', ') : 'No platform activity recorded'}
+          {streak.last_checked_date ? ` · Checked ${formatDate(streak.last_checked_date)}` : ''}
+        </small>
+      </div>
+    </StreakCard>
+  )
+}
+
 function SocialMetricCard({ icon: Icon, label, rows }: { icon: ComponentType<{ size?: number }>; label: string; rows: MetricMovement[] }) {
   return (
     <article className="social-metric-card">
@@ -1700,6 +1816,19 @@ function SocialMetricCard({ icon: Icon, label, rows }: { icon: ComponentType<{ s
       <p className="metric-context">{metricGroupContext(rows)}</p>
     </article>
   )
+}
+
+function streakStatusCopy(status: string, streak?: SocialStreak) {
+  if (status === 'continued' && (streak?.current_streak || 0) > 0) {
+    return { label: 'Posting streak active', detail: 'Yesterday had at least one connected-platform post.', tone: 'active' }
+  }
+  if (status === 'reset' || status === 'no_post') {
+    return { label: 'No post found yesterday', detail: 'The backend confirmed a successful scan with no previous-day post.', tone: 'reset' }
+  }
+  if (status === 'scan_failed' || status === 'unknown') {
+    return { label: "Could not verify yesterday's posting activity", detail: 'The previous streak is preserved until a successful scan runs.', tone: 'unknown' }
+  }
+  return { label: 'Posting streak', detail: 'Based on connected social platform scans.', tone: 'neutral' }
 }
 
 function TrendBadge({ movement }: { movement: MetricMovement }) {
@@ -2616,6 +2745,17 @@ function normalize(value?: string | null) {
 
 function titleize(value?: string | null) {
   return String(value || '-').replace(/[_-]/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase())
+}
+
+function normalizeStringArray(value?: string[] | string | null) {
+  if (Array.isArray(value)) return value.filter(Boolean).map(String)
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.filter(Boolean).map(String) : []
+  } catch {
+    return String(value).split(',').map((item) => item.trim()).filter(Boolean)
+  }
 }
 
 function isGoodStatus(value?: string | null) {

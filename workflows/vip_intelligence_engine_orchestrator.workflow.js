@@ -381,6 +381,20 @@ const recentContent = posts.map((post) => ({
   shares: shares(post),
   interactions: engagement(post),
 }));
+const targetPostDate = DateTime.fromISO($json.date_range_end, { zone: $json.timezone || 'Asia/Kolkata' }).minus({ days: 1 }).toISODate();
+const previousDayPosts = recentContent.filter((post) => {
+  if (!post.created_time) return false;
+  return DateTime.fromISO(post.created_time).setZone($json.timezone || 'Asia/Kolkata').toISODate() === targetPostDate;
+});
+const socialStreakUpdate = {
+  client_slug: $json.client_slug,
+  scan_date: $json.run_date,
+  target_post_date: targetPostDate,
+  posted_yesterday: previousDayPosts.length > 0,
+  platforms_posted: previousDayPosts.length ? ['facebook'] : [],
+  post_count: previousDayPosts.length,
+  scan_status: metricErrors.length ? 'unknown' : 'success',
+};
 const contentTypeRows = Object.entries(contentTypeBreakdown).map(([type, count]) => ({ type, count }));
 const analyticsSnapshot = {
   profile_metrics: {
@@ -445,6 +459,7 @@ return {
     posts,
     post_metrics: data.post_insights || [],
     calculated_metrics: calculated,
+    social_streak_update: socialStreakUpdate,
     analytics_snapshot: analyticsSnapshot,
     normalized_metrics: normalizedMetrics,
     raw_payload: {
@@ -512,6 +527,22 @@ const storeFacebookAnalyticsSnapshot = node({
     credentials: { postgres: newCredential('Supabase Postgres') }
   },
   output: [{ social_analytics_snapshot_id: '44444444-4444-4444-4444-444444444444' }]
+});
+
+const updateFacebookSocialStreak = node({
+  type: 'n8n-nodes-base.postgres',
+  version: 2.6,
+  config: {
+    name: 'Facebook - Update client_social_streaks',
+    position: [4170, 40],
+    parameters: {
+      operation: 'executeQuery',
+      query: expr("select * from update_client_social_streak('{{ $('Facebook - Normalize Data And Calculate Metrics').item.json.social_streak_update.client_slug }}', '{{ $('Facebook - Normalize Data And Calculate Metrics').item.json.social_streak_update.scan_date }}'::date, '{{ $('Facebook - Normalize Data And Calculate Metrics').item.json.social_streak_update.target_post_date }}'::date, {{ $('Facebook - Normalize Data And Calculate Metrics').item.json.social_streak_update.posted_yesterday }}, $$ {{ JSON.stringify($('Facebook - Normalize Data And Calculate Metrics').item.json.social_streak_update.platforms_posted).replace(/\\$\\$/g, '') }} $$::jsonb, {{ $('Facebook - Normalize Data And Calculate Metrics').item.json.social_streak_update.post_count }}, '{{ $('Facebook - Normalize Data And Calculate Metrics').item.json.social_streak_update.scan_status }}');"),
+      options: { largeNumbersOutput: 'numbers' }
+    },
+    credentials: { postgres: newCredential('Supabase Postgres') }
+  },
+  output: [{ current_streak: 1, longest_streak: 1, last_status: 'continued' }]
 });
 
 const queryHistoricalComparison = node({
@@ -719,6 +750,22 @@ const updateEngineRunConfigFailure = node({
   output: [{ status: 'failed', error_message: 'Missing required Facebook config' }]
 });
 
+const updateFacebookSocialStreakFailure = node({
+  type: 'n8n-nodes-base.postgres',
+  version: 2.6,
+  config: {
+    name: 'Facebook - Mark social streak scan_failed',
+    position: [2670, 260],
+    parameters: {
+      operation: 'executeQuery',
+      query: expr("select * from update_client_social_streak('{{ $('Facebook - Validate Required Client Config').item.json.client_slug }}', '{{ $('Facebook - Validate Required Client Config').item.json.run_date }}'::date, ('{{ $('Facebook - Validate Required Client Config').item.json.date_range_end }}'::date - interval '1 day')::date, false, '[]'::jsonb, 0, 'scan_failed');"),
+      options: { largeNumbersOutput: 'numbers' }
+    },
+    credentials: { postgres: newCredential('Supabase Postgres') }
+  },
+  output: [{ last_status: 'scan_failed' }]
+});
+
 const finalConfigFailureResponse = node({
   type: 'n8n-nodes-base.code',
   version: 2,
@@ -794,8 +841,8 @@ export default workflow('vip-intelligence-engine-orchestrator', 'VIP Intelligenc
   .to(prepareEngineItem)
   .to(engineRouter
     .onCase(0, createEngineRun.to(validateFacebookConfig).to(facebookConfigValid
-      .onTrue(facebookMetricRegistry.to(collectFacebookGraphData).to(normalizeFacebookData).to(storeRawData).to(storeNormalizedMetrics).to(storeFacebookAnalyticsSnapshot).to(queryHistoricalComparison).to(prepareAiPrompt).to(aiSummary).to(storeAiOutput).to(storeFacebookAnalyticsSummary).to(updateEngineRunSuccess).to(finalFacebookResponse))
-      .onFalse(updateEngineRunConfigFailure.to(finalConfigFailureResponse))
+      .onTrue(facebookMetricRegistry.to(collectFacebookGraphData).to(normalizeFacebookData).to(storeRawData).to(storeNormalizedMetrics).to(storeFacebookAnalyticsSnapshot).to(updateFacebookSocialStreak).to(queryHistoricalComparison).to(prepareAiPrompt).to(aiSummary).to(storeAiOutput).to(storeFacebookAnalyticsSummary).to(updateEngineRunSuccess).to(finalFacebookResponse))
+      .onFalse(updateEngineRunConfigFailure.to(updateFacebookSocialStreakFailure).to(finalConfigFailureResponse))
     ))
     .onCase(1, instagramPlaceholder)
     .onCase(2, contentPlaceholder)
