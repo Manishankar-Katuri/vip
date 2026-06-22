@@ -110,6 +110,56 @@ for (const field of requiredOutputFields) {
   assert(contains(`${field}:`), `Final output must include ${field}`);
 }
 
+const requiredFrontendCardFields = [
+  'id',
+  'source_engine',
+  'title',
+  'status',
+  'severity',
+  'summary',
+  'recommendations',
+  'next_actions',
+  'evidence_level',
+  'data_policy',
+  'blocked_by',
+  'dashboard_section'
+];
+
+for (const field of requiredFrontendCardFields) {
+  const fieldPattern = new RegExp(`\\b${field}\\b\\s*:|\\b${field}\\b\\s*(?:,|\\})`);
+  assert(fieldPattern.test(source), `Frontend cards must include ${field}`);
+}
+
+const expectedDashboardSections = [
+  'GBP',
+  'Website',
+  'SEO',
+  'Competitors',
+  'Reputation',
+  'Local SEO',
+  'Keywords',
+  'Content Gaps',
+  'Conversion',
+  'Campaigns',
+  'Strategy'
+];
+
+for (const section of expectedDashboardSections) {
+  assert(contains(`'${section}'`), `Dashboard section inventory must include ${section}`);
+}
+
+const requiredStrategySummaryFields = [
+  'top_growth_opportunities',
+  'urgent_fixes',
+  'next_7_day_actions',
+  'missing_config',
+  'by_section'
+];
+
+for (const field of requiredStrategySummaryFields) {
+  assert(contains(`${field}:`), `Strategy/readiness output must include ${field}`);
+}
+
 const expectedEngines = [
   'google_business_profile_intelligence',
   'website_audit_intelligence',

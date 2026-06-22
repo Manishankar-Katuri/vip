@@ -63,8 +63,10 @@ const config = {
   primary_domain: input.primary_domain || '',
   google_business_profile_url: input.google_business_profile_url || input.gbp_url || '',
   google_business_profile_safe_reference_configured: Boolean(input.google_business_profile_credential_env_key || input.gbp_safe_reference_configured),
-  service_keywords: asArray(input.service_keywords || input.priority_services),
+  service_keywords: [...new Set([...asArray(input.service_keywords), ...asArray(input.priority_services)])],
+  priority_services: asArray(input.priority_services || input.service_keywords),
   target_locations: asArray(input.target_locations || input.location),
+  competitor_names: asArray(input.competitor_names),
   competitor_websites: asArray(input.competitor_websites),
   review_platforms: asArray(input.review_platforms),
   active_offers: asArray(input.active_offers),
@@ -73,6 +75,60 @@ const config = {
   allow_public_fetch: toBool(input.allow_public_fetch, false)
 };
 const dataPolicy = 'no_fake_live_data';
+const dashboardSections = {
+  google_business_profile_intelligence: 'GBP',
+  website_audit_intelligence: 'Website',
+  seo_intelligence: 'SEO',
+  competitor_intelligence: 'Competitors',
+  reviews_reputation_intelligence: 'Reputation',
+  local_seo_intelligence: 'Local SEO',
+  keyword_opportunity_intelligence: 'Keywords',
+  content_gap_intelligence: 'Content Gaps',
+  landing_page_conversion_intelligence: 'Conversion',
+  campaign_offer_intelligence: 'Campaigns',
+  digital_marketing_strategy_orchestrator: 'Strategy'
+};
+const titleFor = (engineName) => ({
+  google_business_profile_intelligence: 'Google Business Profile readiness',
+  website_audit_intelligence: 'Website audit readiness',
+  seo_intelligence: 'SEO planning',
+  competitor_intelligence: 'Competitor review checklist',
+  reviews_reputation_intelligence: 'Reputation readiness',
+  local_seo_intelligence: 'Local SEO planning',
+  keyword_opportunity_intelligence: 'Keyword clusters',
+  content_gap_intelligence: 'Content gap themes',
+  landing_page_conversion_intelligence: 'Landing page conversion checklist',
+  campaign_offer_intelligence: 'Campaign and offer ideas',
+  digital_marketing_strategy_orchestrator: 'Digital strategy summary'
+}[engineName] || engineName.replace(/_/g, ' '));
+const evidenceFor = (status, extra) => {
+  if (extra && extra.public_fetch && extra.public_fetch.fetch_status === 'fetched') return 'public_page_signals';
+  if (status === 'skipped_missing_config') return 'insufficient_data';
+  return 'configured_input_only';
+};
+const blockedByFor = (status, missing, extra) => {
+  if (extra && extra.public_fetch && extra.public_fetch.guard_failure) return [extra.public_fetch.guard_failure];
+  if (status === 'skipped_missing_config') return missing;
+  return [];
+};
+const unique = (items) => [...new Set(items.filter((item) => hasText(item)))];
+const firstOr = (items, fallback) => items.length ? items[0] : fallback;
+const serviceLocationIdeas = () => config.service_keywords.slice(0, 8).flatMap((service) =>
+  (config.target_locations.length ? config.target_locations : ['primary service area']).slice(0, 4)
+    .map((location) => service + ' in ' + location)
+);
+const keywordClusters = () => {
+  const services = config.service_keywords.length ? config.service_keywords : ['primary service'];
+  const locations = config.target_locations.length ? config.target_locations : ['primary location'];
+  const seasons = config.seasonal_campaigns.length ? config.seasonal_campaigns : ['seasonal care'];
+  return {
+    high_intent: services.slice(0, 6).flatMap((service) => [service + ' appointment', service + ' consultation']),
+    local: services.slice(0, 4).flatMap((service) => locations.slice(0, 3).map((location) => service + ' in ' + location)),
+    awareness: services.slice(0, 6).map((service) => 'when to consult for ' + service),
+    FAQ: services.slice(0, 6).map((service) => service + ' frequently asked questions'),
+    seasonal: seasons.slice(0, 5).map((season) => season + ' campaign keywords')
+  };
+};
 const baseInputsUsed = () => ({
   website_url_configured: hasText(config.website_url),
   google_business_profile_url_configured: hasText(config.google_business_profile_url),
@@ -87,14 +143,19 @@ const baseInputsUsed = () => ({
   database_writes_enabled: false
 });
 const severityFor = (status) => status === 'success' ? 'info' : status === 'partial_success' ? 'warning' : 'setup';
-const card = (engineName, status, summary, recommendations) => ({
+const card = (engineName, status, summary, recommendations, nextActions, missing, extra) => ({
   id: engineName + '_card',
-  title: engineName.replace(/_/g, ' '),
+  source_engine: engineName,
+  title: titleFor(engineName),
   status,
   severity: severityFor(status),
   summary,
   recommendations,
-  source_engine: engineName
+  next_actions: nextActions,
+  evidence_level: evidenceFor(status, extra),
+  data_policy: dataPolicy,
+  blocked_by: blockedByFor(status, missing, extra),
+  dashboard_section: dashboardSections[engineName] || 'Strategy'
 });
 const result = (engineName, status, summary, findings, recommendations, nextActions, missing = [], extra = {}) => ({
   client_slug: clientSlug,
@@ -105,11 +166,13 @@ const result = (engineName, status, summary, findings, recommendations, nextActi
   findings,
   recommendations,
   next_actions: nextActions,
-  frontend_cards: [card(engineName, status, summary, recommendations)],
+  frontend_cards: [card(engineName, status, summary, recommendations, nextActions, missing, extra)],
   test_mode: true,
   writes_disabled: true,
   summary,
   remaining_config_needed: missing,
+  evidence_level: evidenceFor(status, extra),
+  dashboard_section: dashboardSections[engineName] || 'Strategy',
   ...extra
 });
 const skip = (engineName, summary, missing) => result(
@@ -248,12 +311,12 @@ if (enginesToRun.includes('google_business_profile_intelligence')) {
   if (!hasText(config.google_business_profile_url) && !config.google_business_profile_safe_reference_configured) {
     engineResults.push(skip('google_business_profile_intelligence', 'GBP intelligence skipped because no public profile URL or safe reference is configured.', ['google_business_profile_url or safe reference']));
   } else {
-    engineResults.push(result('google_business_profile_intelligence', 'partial_success', 'GBP configuration is present, but live GBP metrics are disabled in this dry run.', ['No calls, views, searches, directions, or ranking metrics were requested.'], ['Connect an approved GBP adapter before reporting GBP performance.'], ['Keep GBP live metrics disabled until approved.']));
+    engineResults.push(result('google_business_profile_intelligence', 'partial_success', 'GBP configuration is present, but live GBP metrics are disabled in this dry run.', ['No calls, views, searches, directions, or ranking metrics were requested.'], ['Verify public profile name, category, address/service area, hours, phone, website link, services, photos, and appointment path.', 'Prepare a weekly public-profile checklist before enabling approved GBP adapters.'], ['Keep GBP live metrics disabled until approved.', 'Confirm the configured GBP URL opens the intended public profile.']));
   }
 }
 if (enginesToRun.includes('website_audit_intelligence')) {
   if (!hasText(config.website_url)) engineResults.push(skip('website_audit_intelligence', 'Website audit skipped because website_url is missing.', ['website_url']));
-  else if (!config.allow_public_fetch) engineResults.push(result('website_audit_intelligence', 'partial_success', 'Website URL is configured; no public fetch was performed because allow_public_fetch is false.', ['No website content was fetched in this dry run.'], ['Enable an approved public website check only when needed.'], ['Keep dry-run mode for no-network validation.'], [], { fetch_status: 'disabled_by_default' }));
+  else if (!config.allow_public_fetch) engineResults.push(result('website_audit_intelligence', 'partial_success', 'Website URL is configured; no public fetch was performed because allow_public_fetch is false.', ['No website content was fetched in this dry run.', 'Configured website URL: ' + config.website_url, 'Configured primary domain: ' + (config.primary_domain || 'not provided')], ['Manually verify homepage title, meta description, H1, service navigation, contact path, appointment CTA, WhatsApp/call access, and trust signals.', 'Use opt-in public fetch only for safe page-level checks, not SEO scoring or performance claims.'], ['Keep dry-run mode for no-network validation.', 'Set allow_public_fetch=true only for a specific Website Audit test.'], [], { fetch_status: 'disabled_by_default' }));
   else {
     const fetchAudit = await runWebsitePublicFetch();
     const fetched = fetchAudit.fetch_status === 'fetched';
@@ -277,36 +340,45 @@ if (enginesToRun.includes('website_audit_intelligence')) {
 }
 if (enginesToRun.includes('seo_intelligence')) {
   if (!hasText(config.website_url) || config.service_keywords.length === 0) engineResults.push(skip('seo_intelligence', 'SEO intelligence skipped because website_url or service keywords are missing.', ['website_url', 'service_keywords']));
-  else engineResults.push(result('seo_intelligence', 'partial_success', 'SEO guidance generated from configured inputs only.', ['No rankings, keyword volume, or difficulty were claimed.'], config.service_keywords.slice(0, 10).map((item) => 'Prepare service-page coverage for: ' + item), ['Connect approved Search Console or keyword data before reporting visibility metrics.']));
+  else engineResults.push(result('seo_intelligence', 'partial_success', 'SEO guidance generated from configured inputs only.', ['No rankings, keyword volume, or difficulty were claimed.'], unique([
+    ...config.service_keywords.slice(0, 8).map((item) => 'Map a dedicated service section or page for: ' + item),
+    ...serviceLocationIdeas().slice(0, 8).map((item) => 'Add local relevance copy for: ' + item),
+    'Review title tags, meta descriptions, internal links, schema candidates, and appointment CTAs for priority services.'
+  ]), ['Connect approved Search Console or keyword data before reporting visibility metrics.', 'Prioritize service pages using business priority, not unverified search volume.']));
 }
 if (enginesToRun.includes('competitor_intelligence')) {
   if (config.competitor_websites.length === 0) engineResults.push(skip('competitor_intelligence', 'Competitor intelligence skipped because competitor websites are missing.', ['competitor_websites']));
-  else engineResults.push(result('competitor_intelligence', 'partial_success', 'Competitor inputs are configured; no competitor performance data was fetched or inferred.', config.competitor_websites.slice(0, 5).map((item) => 'Configured competitor source: ' + item), ['Compare visible service coverage and trust signals manually.'], ['Use approved public checks or APIs before reporting competitor metrics.']));
+  else engineResults.push(result('competitor_intelligence', 'partial_success', 'Competitor inputs are configured; no competitor performance data was fetched or inferred.', config.competitor_websites.slice(0, 5).map((item, index) => 'Configured competitor source: ' + (config.competitor_names[index] || 'Competitor ' + (index + 1)) + ' - ' + item), ['Review competitor homepage promise, service menu, doctor/team credibility, appointment path, location clarity, FAQ depth, and trust signals.', 'Capture visible differentiators manually before creating positioning recommendations.'], ['Use approved public checks or APIs before reporting competitor metrics.', 'Keep competitor notes as qualitative checklist items until real public checks are configured.']));
 }
 if (enginesToRun.includes('reviews_reputation_intelligence')) {
   if (config.review_platforms.length === 0) engineResults.push(skip('reviews_reputation_intelligence', 'Review intelligence skipped because review platforms are missing.', ['review_platforms']));
-  else engineResults.push(result('reviews_reputation_intelligence', 'skipped_missing_config', 'Review platforms are configured, but live review adapters are disabled.', ['No review counts, ratings, or sentiment were fabricated.'], ['Prepare review response policy and escalation rules.'], ['Connect approved review APIs before reporting review metrics.'], ['approved review API adapter']));
+  else engineResults.push(result('reviews_reputation_intelligence', 'skipped_missing_config', 'Review platforms are configured, but live review adapters are disabled.', ['No review counts, ratings, or sentiment were fabricated.'], ['Collect official review links for each configured platform.', 'Create a review response policy with approval owners.', 'Define escalation categories for clinical, billing, appointment, and privacy-sensitive feedback.', 'Prepare a weekly manual review queue until approved review APIs are connected.'], ['Connect approved review APIs before reporting review metrics.', 'Confirm who approves public responses before automation.'], ['approved review API adapter']));
 }
 if (enginesToRun.includes('local_seo_intelligence')) {
   if (config.target_locations.length === 0 || config.service_keywords.length === 0) engineResults.push(skip('local_seo_intelligence', 'Local SEO skipped because target locations or service keywords are missing.', ['target_locations', 'service_keywords']));
-  else engineResults.push(result('local_seo_intelligence', 'success', 'Local SEO ideas generated from configured services and locations only.', ['Generated configured service-location combinations without ranking claims.'], config.service_keywords.slice(0, 8).flatMap((service) => config.target_locations.slice(0, 4).map((location) => service + ' in ' + location)), ['Validate demand with approved search data before prioritizing.']));
+  else engineResults.push(result('local_seo_intelligence', 'success', 'Local SEO ideas generated from configured services and locations only.', ['Generated configured service-location combinations without ranking claims.'], [...serviceLocationIdeas().slice(0, 16).map((item) => 'Create or improve landing coverage for: ' + item), 'Check citations/profiles for consistent name, address/service area, phone, hours, website URL, service categories, and appointment link.'], ['Validate demand with approved search data before prioritizing.', 'Use configured locations to build a profile/citation cleanup checklist.']));
 }
 if (enginesToRun.includes('keyword_opportunity_intelligence')) {
   if (config.service_keywords.length === 0) engineResults.push(skip('keyword_opportunity_intelligence', 'Keyword opportunity skipped because service keywords are missing.', ['service_keywords']));
-  else engineResults.push(result('keyword_opportunity_intelligence', 'success', 'Keyword ideas generated from configured services only.', ['No keyword volume, rank, or difficulty was claimed.'], config.service_keywords.slice(0, 10).flatMap((item) => [item + ' appointment', item + ' specialist', 'when to consult for ' + item]), ['Connect approved keyword data before scoring opportunity size.']));
+  else engineResults.push(result('keyword_opportunity_intelligence', 'success', 'Keyword clusters generated from configured services only.', ['No keyword volume, rank, or difficulty was claimed.'], ['Build clusters for high_intent, local, awareness, FAQ, and seasonal topics.', 'Use clusters to brief pages and posts before connecting approved keyword scoring.'], ['Connect approved keyword data before scoring opportunity size.'], [], { keyword_clusters: keywordClusters() }));
 }
 if (enginesToRun.includes('content_gap_intelligence')) {
   if (!hasText(config.website_url) && config.service_keywords.length === 0) engineResults.push(skip('content_gap_intelligence', 'Content gap intelligence skipped because website URL and service keywords are missing.', ['website_url or service_keywords']));
-  else engineResults.push(result('content_gap_intelligence', 'partial_success', 'Content topics generated from configured inputs only.', ['No crawl or CMS inventory was performed in dry-run mode.'], config.service_keywords.slice(0, 8).flatMap((item) => [item + ' explained', item + ' care process', item + ' frequently asked questions']), ['Use an approved crawl or CMS inventory before marking gaps as confirmed.']));
+  else engineResults.push(result('content_gap_intelligence', 'partial_success', 'Content themes generated from configured inputs only.', ['No crawl or CMS inventory was performed in dry-run mode.'], ['Caregiver education: ' + config.service_keywords.slice(0, 5).map((item) => 'supporting a patient with ' + item).join('; '), 'Trust-building: doctor/team story, care process, safety, follow-up, and family reassurance.', 'Service explainers: ' + config.service_keywords.slice(0, 5).map((item) => item + ' explained').join('; '), 'FAQ: ' + config.service_keywords.slice(0, 5).map((item) => 'common questions about ' + item).join('; '), 'Campaign content: ' + [...config.campaign_goals, ...config.seasonal_campaigns].slice(0, 6).join('; ')], ['Use an approved crawl or CMS inventory before marking gaps as confirmed.', 'Separate educational, trust, service, FAQ, and campaign briefs in the content plan.']));
 }
 if (enginesToRun.includes('landing_page_conversion_intelligence')) {
   if (!hasText(config.website_url)) engineResults.push(skip('landing_page_conversion_intelligence', 'Landing page intelligence skipped because website_url is missing.', ['website_url']));
-  else engineResults.push(result('landing_page_conversion_intelligence', 'partial_success', 'Conversion guidance generated from configured website URL only.', ['No analytics, form, call, or conversion-rate data was fetched.'], ['Place appointment, call, or WhatsApp CTA near the top of service pages.', 'Add doctor/team credibility, location clarity, and reassurance near conversion points.'], ['Connect approved analytics before reporting conversion performance.']));
+  else engineResults.push(result('landing_page_conversion_intelligence', 'partial_success', 'Conversion checklist generated from configured website and service priorities only.', ['No analytics, form, call, or conversion-rate data was fetched.'], ['CTA: make appointment booking visible near the top of priority service pages.', 'WhatsApp/call: expose one-tap contact paths on mobile.', 'Trust signals: add reviews policy-safe proof, accreditations, facility photos, and family reassurance.', 'Doctor/team credibility: show clinical expertise near service decisions.', 'Service page clarity: explain who the service is for, when to consult, process, location, and next step.'], ['Connect approved analytics before reporting conversion performance.', 'Review priority pages for the configured services: ' + config.priority_services.slice(0, 6).join(', ')]));
 }
 if (enginesToRun.includes('campaign_offer_intelligence')) {
   const campaignInputs = [...config.active_offers, ...config.seasonal_campaigns, ...config.campaign_goals];
   if (campaignInputs.length === 0) engineResults.push(skip('campaign_offer_intelligence', 'Campaign intelligence skipped because offers, seasons, or goals are missing.', ['active_offers or seasonal_campaigns or campaign_goals']));
-  else engineResults.push(result('campaign_offer_intelligence', 'success', 'Campaign ideas generated from configured offers and goals only.', ['No campaign projection or performance estimate was generated.'], campaignInputs.slice(0, 20).map((item) => 'Build guarded campaign concept around: ' + item), ['Connect approved performance data before optimizing offers.']));
+  else engineResults.push(result('campaign_offer_intelligence', 'success', 'Campaign ideas generated from configured offers and goals only.', ['No campaign projection or performance estimate was generated.'], unique([
+    ...config.active_offers.slice(0, 6).map((item) => 'Offer-led campaign: ' + item + ' with service-page CTA and follow-up workflow.'),
+    ...config.seasonal_campaigns.slice(0, 6).map((item) => 'Seasonal campaign: ' + item + ' with caregiver education and appointment prompt.'),
+    ...config.campaign_goals.slice(0, 6).map((item) => 'Goal-led campaign: ' + item + ' using configured services and locations.'),
+    ...serviceLocationIdeas().slice(0, 4).map((item) => 'Local campaign angle: ' + item)
+  ]), ['Connect approved performance data before optimizing offers.', 'Keep campaign outputs as concepts until real campaign metrics are available.']));
 }
 if (enginesToRun.includes('digital_marketing_strategy_orchestrator')) {
   const readinessSignals = [hasText(config.website_url), config.service_keywords.length > 0, config.target_locations.length > 0, hasText(config.google_business_profile_url) || config.google_business_profile_safe_reference_configured, config.competitor_websites.length > 0, config.review_platforms.length > 0, config.active_offers.length + config.seasonal_campaigns.length + config.campaign_goals.length > 0];
@@ -319,11 +391,50 @@ if (enginesToRun.includes('digital_marketing_strategy_orchestrator')) {
     config.review_platforms.length ? '' : 'review_platforms',
     config.active_offers.length + config.seasonal_campaigns.length + config.campaign_goals.length ? '' : 'campaign inputs'
   ].filter(Boolean);
-  engineResults.push(result('digital_marketing_strategy_orchestrator', readinessSignals.some(Boolean) ? 'partial_success' : 'skipped_missing_config', 'Strategy dry run completed from configured inputs only.', ['Configured readiness signals: ' + readinessSignals.filter(Boolean).length + ' of ' + readinessSignals.length], ['Complete missing config fields before automation rollout.', 'Keep live platform APIs disabled until approved adapters are configured.'], ['Review remaining_config_needed and rerun this manual test.'], missing));
+  const strategyRecommendations = unique([
+    hasText(config.website_url) ? 'Start with website and conversion readiness for ' + config.website_url + '.' : '',
+    config.service_keywords.length ? 'Build service-led SEO and content briefs for: ' + config.service_keywords.slice(0, 5).join(', ') + '.' : '',
+    config.target_locations.length ? 'Create local landing/profile work for: ' + config.target_locations.slice(0, 5).join(', ') + '.' : '',
+    config.competitor_websites.length ? 'Run a qualitative competitor checklist before positioning changes.' : '',
+    config.review_platforms.length ? 'Prepare reputation workflow before review adapters are enabled.' : '',
+    config.active_offers.length + config.seasonal_campaigns.length + config.campaign_goals.length ? 'Turn configured offers, seasons, and goals into campaign briefs without projections.' : ''
+  ]);
+  engineResults.push(result('digital_marketing_strategy_orchestrator', readinessSignals.some(Boolean) ? 'partial_success' : 'skipped_missing_config', 'Strategy dry run completed from configured inputs only.', ['Configured readiness signals: ' + readinessSignals.filter(Boolean).length + ' of ' + readinessSignals.length, 'Strategy score is insufficient_data because no live evidence-backed scoring is enabled.'], strategyRecommendations.length ? strategyRecommendations : ['Complete missing config fields before automation rollout.', 'Keep live platform APIs disabled until approved adapters are configured.'], ['Review remaining_config_needed and rerun this manual test.', 'Use the next 7-day actions from strategy_summary before enabling live adapters.'], missing, { strategy_evidence_status: 'insufficient_data' }));
 }
 const frontendCards = engineResults.flatMap((item) => item.frontend_cards);
 const skipped = engineResults.filter((item) => item.status === 'skipped_missing_config').map((item) => item.engine_name);
 const remaining = [...new Set(engineResults.flatMap((item) => item.remaining_config_needed))];
+const sectionReadiness = Object.fromEntries(Object.entries(dashboardSections).map(([engine, section]) => {
+  const resultForSection = engineResults.find((item) => item.engine_name === engine);
+  return [section, {
+    engine,
+    status: resultForSection ? resultForSection.status : 'not_selected',
+    evidence_level: resultForSection ? resultForSection.evidence_level : 'not_selected',
+    blocked_by: resultForSection ? resultForSection.frontend_cards[0].blocked_by : []
+  }];
+}));
+const topGrowthOpportunities = unique([
+  config.service_keywords.length ? 'Build service pages and content around: ' + config.service_keywords.slice(0, 5).join(', ') : '',
+  serviceLocationIdeas().length ? 'Create local service coverage for: ' + serviceLocationIdeas().slice(0, 5).join('; ') : '',
+  config.active_offers.length ? 'Package active offers into guarded campaign briefs: ' + config.active_offers.slice(0, 4).join(', ') : '',
+  config.seasonal_campaigns.length ? 'Plan seasonal caregiver education around: ' + config.seasonal_campaigns.slice(0, 4).join(', ') : '',
+  hasText(config.website_url) ? 'Improve website CTA, trust, and service clarity for the configured domain.' : ''
+]);
+const urgentFixes = unique([
+  ...remaining.map((item) => 'Configure ' + item + '.'),
+  hasText(config.website_url) ? 'Manually verify website title, H1, service navigation, appointment CTA, and contact path.' : '',
+  config.review_platforms.length ? 'Define review response approval and escalation categories before enabling review automation.' : ''
+]);
+const next7DayActions = unique([
+  'Keep writes disabled and live platform APIs off until approved adapters are configured.',
+  hasText(config.website_url) ? 'Day 1: review configured website URL and primary domain for public readiness.' : '',
+  config.service_keywords.length ? 'Day 2: map configured services to pages, FAQs, and internal links.' : '',
+  config.target_locations.length ? 'Day 3: draft local service-location page ideas.' : '',
+  config.competitor_websites.length ? 'Day 4: complete qualitative competitor checklist.' : '',
+  config.review_platforms.length ? 'Day 5: prepare review links, response policy, and escalation categories.' : '',
+  config.active_offers.length + config.seasonal_campaigns.length + config.campaign_goals.length ? 'Day 6: convert offers, seasons, and goals into campaign briefs.' : '',
+  'Day 7: rerun the guarded test and review remaining_config_needed.'
+]);
 return {
   json: {
     workflow_name: workflowName,
@@ -335,8 +446,20 @@ return {
     engines_skipped: skipped,
     engine_results: engineResults,
     frontend_cards: frontendCards,
-    strategy_summary: 'Dry-run strategy summary uses configured inputs only and makes no fake live-data claims.',
-    readiness_status: remaining.length ? 'partial_configuration' : 'guarded_test_ready',
+    strategy_summary: {
+      summary: 'Dry-run strategy summary uses configured inputs only and makes no fake live-data claims.',
+      top_growth_opportunities: topGrowthOpportunities,
+      urgent_fixes: urgentFixes,
+      next_7_day_actions: next7DayActions,
+      missing_config: remaining,
+      readiness_status: remaining.length ? 'partial_configuration' : 'guarded_test_ready',
+      evidence_level: 'configured_input_only',
+      scoring_status: 'insufficient_data'
+    },
+    readiness_status: {
+      overall: remaining.length ? 'partial_configuration' : 'guarded_test_ready',
+      by_section: sectionReadiness
+    },
     remaining_config_needed: remaining,
     data_policy: dataPolicy,
     write_policy: 'writes_disabled_no_database_nodes',
