@@ -6,6 +6,7 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
   useNavigate,
   useParams,
 } from 'react-router-dom'
@@ -43,6 +44,7 @@ import {
 import { format, parseISO } from 'date-fns'
 import { LandingPage } from './pages/LandingPage'
 import { ToolsPage } from './pages/ToolsPage'
+import { WorkspacePage } from './pages/WorkspacePage'
 import { Button } from './components/ui/button'
 import { SignInPage } from './components/ui/sign-in-flow-1'
 import { BadgeDelta } from './components/ui/badge-delta'
@@ -318,6 +320,7 @@ const supabase = hasSupabaseConfig ? createClient(supabaseUrl, supabaseAnonKey) 
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/workspace', label: 'Team Workspace', icon: ClipboardCheck },
   { to: '/analytics', label: 'Analytics', icon: BarChart3 },
   { to: '/approvals', label: 'Approval Queue', icon: ClipboardCheck },
   { to: '/calendar', label: '30-Day Calendar', icon: CalendarDays },
@@ -480,6 +483,7 @@ function AuthenticatedRoutes() {
           <ProtectedShell session={session}>
             <Routes>
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/workspace" element={<WorkspacePage session={session} />} />
               <Route path="/engine-outputs" element={<EngineOutputsPage />} />
               <Route path="/approvals" element={<ApprovalQueue />} />
               <Route path="/content/:itemId" element={<DailyContentDetail />} />
@@ -501,11 +505,13 @@ function AuthenticatedRoutes() {
 function ProtectedShell({ session, children }: { session: Session | null; children: ReactNode }) {
   const [selectedClientId, setSelectedClientId] = useState<string>('')
   const [refreshKey, setRefreshKey] = useState(0)
+  const location = useLocation()
+  const workspacePreviewAllowed = import.meta.env.DEV && location.pathname.startsWith('/workspace')
   const data = useVipData(supabase, session, selectedClientId, refreshKey)
   const effectiveClientId = selectedClientId || data.clients[0]?.id || ''
   const selectedClient = data.clients.find((client) => client.id === effectiveClientId) || data.clients[0]
 
-  if (!session && hasSupabaseConfig) {
+  if (!session && hasSupabaseConfig && !workspacePreviewAllowed) {
     return <Navigate to="/tools/vip" replace />
   }
 

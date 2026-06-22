@@ -1,6 +1,26 @@
 {
   "rewrites": [
     {
+      "source": "/api/workspace/tasks/:id/checklist/:itemId",
+      "destination": "/api/workspace/task-checklist-item?id=:id&itemId=:itemId"
+    },
+    {
+      "source": "/api/workspace/tasks/:id/checklist",
+      "destination": "/api/workspace/task-checklist?id=:id"
+    },
+    {
+      "source": "/api/workspace/tasks/:id/comments",
+      "destination": "/api/workspace/task-comments?id=:id"
+    },
+    {
+      "source": "/api/workspace/tasks/:id/attachments",
+      "destination": "/api/workspace/task-attachments?id=:id"
+    },
+    {
+      "source": "/api/workspace/tasks/:id",
+      "destination": "/api/workspace/task-detail?id=:id"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

@@ -42,6 +42,7 @@ const requestedEngine = input.engine || 'facebook_intelligence';
 const requestedClient = input.client_id || input.client_slug || '';
 return {
   json: {
+    original_input: input,
     run_date: runDate,
     timezone: 'Asia/Kolkata',
     default_engine: 'facebook_intelligence',
@@ -57,6 +58,7 @@ return {
     }
   },
   output: [{
+    original_input: {},
     run_date: '2026-06-15',
     timezone: 'Asia/Kolkata',
     default_engine: 'facebook_intelligence',
@@ -150,6 +152,7 @@ const engineRouter = switchCase({
           { outputKey: 'facebook_intelligence', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'facebook_intelligence' }], combinator: 'and' } },
           { outputKey: 'instagram_intelligence', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'instagram_intelligence' }], combinator: 'and' } },
           { outputKey: 'content_performance', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'content_performance' }], combinator: 'and' } },
+          { outputKey: 'daily_content_production', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'daily_content_production' }], combinator: 'and' } },
           { outputKey: 'trends_intelligence', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'trends_intelligence' }], combinator: 'and' } },
           { outputKey: 'demographics_intelligence', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'demographics_intelligence' }], combinator: 'and' } },
           { outputKey: 'competitor_intelligence', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'competitor_intelligence' }], combinator: 'and' } },
@@ -166,7 +169,10 @@ const engineRouter = switchCase({
           { outputKey: 'social_media_strategy', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'social_media_strategy' }], combinator: 'and' } },
           { outputKey: 'content_calendar_strategy', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'content_calendar_strategy' }], combinator: 'and' } },
           { outputKey: 'campaign_strategy', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'campaign_strategy' }], combinator: 'and' } },
-          { outputKey: 'business_growth_strategy', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'business_growth_strategy' }], combinator: 'and' } }
+          { outputKey: 'business_growth_strategy', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'business_growth_strategy' }], combinator: 'and' } },
+          { outputKey: '30_day_content_plan_engine', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: '30_day_content_plan_engine' }], combinator: 'and' } },
+          { outputKey: 'adaptive_plan_update', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'adaptive_plan_update' }], combinator: 'and' } },
+          { outputKey: 'digital_marketing_strategy_orchestrator', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'digital_marketing_strategy_orchestrator' }], combinator: 'and' } }
         ]
       },
       options: { fallbackOutput: 'none' }
@@ -1362,6 +1368,334 @@ return {
   output: [{ client_id: 'client_slug_here', engine: 'website_audit_intelligence', status: 'skipped_missing_config', data_policy: 'no_fake_live_data' }]
 });
 
+const dailyContentProductionPlanEngine = node({
+  type: 'n8n-nodes-base.code',
+  version: 2,
+  config: {
+    name: 'Daily Content Production - Plan And Workspace Sync',
+    position: [1620, 980],
+    parameters: {
+      mode: 'runOnceForEachItem',
+      language: 'javaScript',
+      jsCode: `
+const client = $json;
+const input = client.original_input || {};
+const workspaceActionTypes = [
+  '30_day_content_plan',
+  'adaptive_plan_update',
+  'strategy_action',
+  'website_seo_action',
+  'google_business_profile_action',
+  'content_performance_followup'
+];
+const asArray = (value) => {
+  if (Array.isArray(value)) return value.filter((item) => item !== undefined && item !== null && String(item).trim() !== '');
+  if (typeof value === 'string') return value.split(',').map((item) => item.trim()).filter(Boolean);
+  return [];
+};
+const asObjectArray = (value) => asArray(value).filter((item) => item && typeof item === 'object');
+const toBool = (value, fallback = false) => {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'boolean') return value;
+  return ['true', '1', 'yes', 'on'].includes(String(value).toLowerCase());
+};
+const slugify = (value) => String(value || 'item').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 80) || 'item';
+const resolveWorkspaceTasksApiUrl = (input, env) => input.workspace_tasks_api_url || env.WORKSPACE_TASKS_API_URL || (env.WORKSPACE_APP_BASE_URL ? String(env.WORKSPACE_APP_BASE_URL).replace(/\\/$/, '') + '/api/workspace/workflow-tasks' : '');
+const textIncludes = (value, words) => {
+  const text = String(value || '').toLowerCase();
+  return words.some((word) => text.includes(word));
+};
+const shouldEnableWorkspaceSync = (input, env) => {
+  const endpoint = resolveWorkspaceTasksApiUrl(input, env);
+  const testMode = toBool(input.test_mode, env.clientMode === 'test' || env.executionMode === 'test');
+  const explicitSync = toBool(input.enable_workspace_sync ?? input.workspace_sync_enabled ?? env.WORKSPACE_SYNC_ENABLED, false);
+  if (!endpoint) return { enabled: false, endpoint, skipped_reason: 'WORKSPACE_TASKS_API_URL or WORKSPACE_APP_BASE_URL is not configured' };
+  if (testMode && !explicitSync) return { enabled: false, endpoint, skipped_reason: 'test mode requires enable_workspace_sync=true' };
+  if (toBool(input.disable_workspace_sync, false)) return { enabled: false, endpoint, skipped_reason: 'disable_workspace_sync=true' };
+  if (!env.WORKSPACE_API_INTERNAL_TOKEN) return { enabled: false, endpoint, skipped_reason: 'workspace_internal_token_missing' };
+  return { enabled: true, endpoint, internalToken: env.WORKSPACE_API_INTERNAL_TOKEN, skipped_reason: null };
+};
+const inferAdaptiveCategory = (item) => {
+  if (item.category) return item.category;
+  const text = [item.action_title, item.recommendation, item.title, item.topic, item.content_topic, item.reason, item.objective, item.goal].join(' ').toLowerCase();
+  if (textIncludes(text, ['caption'])) return 'caption_writing';
+  if (textIncludes(text, ['missing raw video', 'raw video', 'doctor', 'client follow', 'follow up', 'follow-up'])) return 'client_followup';
+  if (textIncludes(text, ['seo', 'blog', 'website', 'landing page', 'search'])) return 'seo';
+  if (textIncludes(text, ['design', 'thumbnail', 'story creative', 'carousel design'])) return 'design';
+  if (textIncludes(text, ['analytics', 'review performance', 'performance review'])) return 'analytics_review';
+  if (textIncludes(text, ['change', 'revise', 'replace', 'pause', 'update'])) return 'content_update';
+  return 'publishing';
+};
+const inferAdaptivePriority = (item) => {
+  if (item.priority) return item.priority;
+  if (item.urgency) return item.urgency;
+  const text = [item.action_title, item.recommendation, item.title, item.topic, item.reason, item.objective, item.goal, item.due_date, item.scheduled_date].join(' ').toLowerCase();
+  if (textIncludes(text, ['urgent', 'today', 'blocked', 'missing', 'overdue', 'high-performing', 'high performing'])) return 'high';
+  if (textIncludes(text, ['optional', 'nice-to-have', 'nice to have', 'low priority'])) return 'low';
+  return 'medium';
+};
+const inferStrategyCategory = (item) => {
+  if (item.category) return item.category;
+  const text = [item.action_title, item.recommendation, item.title, item.topic, item.content_topic, item.reason, item.objective, item.goal, item.expected_impact, item.source_signal, item.source_signals].join(' ').toLowerCase();
+  if (textIncludes(text, ['caption', 'script'])) return 'caption_writing';
+  if (textIncludes(text, ['design', 'carousel', 'thumbnail', 'template'])) return 'design';
+  if (textIncludes(text, ['website', 'page', 'cta', 'service update', 'service page'])) return 'website_update';
+  if (textIncludes(text, ['blog', 'meta', 'keyword', 'faq', 'seo'])) return 'seo';
+  if (textIncludes(text, ['google business profile', 'gbp', 'business profile'])) return 'google_business_profile';
+  if (textIncludes(text, ['follow-up', 'follow up', 'client', 'doctor'])) return 'client_followup';
+  if (textIncludes(text, ['analytics', 'performance review', 'review performance'])) return 'analytics_review';
+  if (textIncludes(text, ['social', 'reel', 'post', 'story', 'instagram', 'facebook'])) return 'publishing';
+  return 'internal_ops';
+};
+const inferStrategyPriority = (item) => {
+  if (item.priority) return item.priority;
+  if (item.urgency) return item.urgency;
+  if (item.impact === 'high') return 'high';
+  const text = [item.action_title, item.recommendation, item.title, item.topic, item.reason, item.objective, item.goal, item.expected_impact, item.due_date, item.scheduled_date].join(' ').toLowerCase();
+  if (textIncludes(text, ['urgent', 'high impact', 'today', 'this week', 'blocker', 'missing', 'high opportunity', 'high-impact'])) return 'high';
+  if (textIncludes(text, ['optional', 'future', 'nice-to-have', 'nice to have', 'low priority'])) return 'low';
+  return 'medium';
+};
+const normalizeWorkspacePlanItem = (item, context) => {
+  const itemTopic = item.planned_topic || item.topic || item.title || item.action_title || item.recommendation || item.content_topic || context.topic;
+  const itemFormat = item.planned_content_format || item.content_format || item.recommended_format || item.format || item.post_type || context.format;
+  const itemPlatforms = asArray(item.planned_platforms || item.platforms || item.channels || item.platform || context.platforms);
+  const itemPublishDate = item.planned_publish_date || item.publish_date || item.due_date || item.planned_date || item.scheduled_date || item.date || context.defaultPublishDate;
+  const stableKey = slugify([context.client.client_slug, itemPublishDate, itemTopic, itemFormat, context.index + 1].join('_'));
+  const itemCategory = context.isStrategyOrchestrator ? inferStrategyCategory(item) : (context.isAdaptivePlanUpdate ? inferAdaptiveCategory(item) : item.category || context.fallbackItem.category);
+  const itemPriority = context.isStrategyOrchestrator ? inferStrategyPriority(item) : (context.isAdaptivePlanUpdate ? inferAdaptivePriority(item) : item.priority || context.fallbackItem.priority);
+  return {
+    related_content_plan_id: item.related_content_plan_id || item.content_plan_id || context.input.related_content_plan_id || context.planIdPrefix + context.client.client_slug + '_' + context.runDate,
+    related_content_plan_item_id: item.related_content_plan_item_id || item.content_plan_item_id || item.item_id || item.task_id || item.id || item.update_id || item.recommendation_id || context.itemIdPrefix + stableKey,
+    planned_action_id: item.planned_action_id || item.action_id || item.actionId || item.task_id || item.update_id || item.recommendation_id || context.actionIdPrefix + stableKey,
+    planned_topic: itemTopic,
+    planned_content_format: itemFormat,
+    planned_platforms: itemPlatforms,
+    planned_publish_date: itemPublishDate,
+    content_objective: item.content_objective || item.objective || item.goal || item.reason || context.fallbackItem.content_objective,
+    generated_script: item.generated_script || item.suggested_script || item.script || context.generatedScript,
+    generated_caption: item.generated_caption || item.suggested_caption || item.caption || context.generatedCaption,
+    category: itemCategory,
+    priority: itemPriority,
+    plan_context: {
+      source_item: item,
+      source_plan_context: item.plan_context || item.context || null,
+      recommendation_reason: item.strategic_reason || item.reason || item.why || item.rationale || null,
+      expected_impact: item.expected_impact || item.impact || null,
+      source_signals: item.source_signals || item.source_signal || item.signals || null,
+      run_date: context.runDate,
+      client_slug: context.client.client_slug,
+      source_engine_name: context.sourceEngineName
+    }
+  };
+};
+const buildWorkspacePayload = (items, context) => ({
+  source_workflow_run_id: context.sourceWorkflowRunId,
+  source_engine_name: context.sourceEngineName,
+  source_plan_type: context.sourcePlanType,
+  client_id: context.client.client_slug || context.client.id,
+  client_name: context.client.client_name,
+  items
+});
+const summarizeWorkspaceSyncResult = (response, errors = [], skipped = 0, enabled = false, skippedReason = null) => {
+  const results = response && response.results ? response.results : [];
+  return {
+    workspace_sync_enabled: enabled,
+    workspace_tasks_created: results.filter((result) => result.status === 'created').length,
+    workspace_tasks_existing: results.filter((result) => result.status === 'existing').length,
+    workspace_tasks_skipped: skipped,
+    workspace_sync_errors: errors,
+    workspace_task_ids: response && response.task_ids ? response.task_ids : results.map((result) => result.task_id).filter(Boolean),
+    skipped_reason: skippedReason
+  };
+};
+const syncWorkspaceTasks = async (payload, config) => {
+  if (!payload.items.length) return summarizeWorkspaceSyncResult(null, [], 0, false, 'no actionable workspace plan items');
+  if (!config.enabled) return summarizeWorkspaceSyncResult(null, [], payload.items.length, false, config.skipped_reason);
+  try {
+    const response = await config.httpRequest({
+      method: 'POST',
+      uri: config.endpoint,
+      headers: {
+        Authorization: 'Bearer ' + config.internalToken
+      },
+      body: payload,
+      json: true,
+      timeout: 30000
+    });
+    const resultCount = response && response.results ? response.results.length : 0;
+    return summarizeWorkspaceSyncResult(response, [], Math.max(0, payload.items.length - resultCount), true, null);
+  } catch (error) {
+    return summarizeWorkspaceSyncResult(null, [error.message || String(error)], payload.items.length, true, null);
+  }
+};
+const collectThirtyDayContentItems = (input) => {
+  const directItems = [
+    ...asObjectArray(input.items),
+    ...asObjectArray(input.plan_items),
+    ...asObjectArray(input.content_items),
+    ...asObjectArray(input.planned_content_items),
+    ...asObjectArray(input.calendar_items),
+    ...asObjectArray(input.actions)
+  ];
+  const calendar = asObjectArray(input.content_calendar || input.calendar || input.plan);
+  const dayItems = calendar.flatMap((day) => asObjectArray(day.items || day.content_items || day.actions || day.posts).map((item) => ({ ...item, date: item.date || day.date || day.publish_date || day.planned_publish_date })));
+  return [...directItems, ...dayItems].filter((item) => {
+    const topicValue = item.planned_topic || item.topic || item.title || item.content_topic;
+    const dateValue = item.planned_publish_date || item.publish_date || item.planned_date || item.scheduled_date || item.date;
+    return Boolean(topicValue && dateValue);
+  });
+};
+const collectAdaptivePlanUpdateItems = (input) => {
+  const actionVerbs = ['create', 'revise', 'change', 'add', 'follow up', 'follow-up', 'repost', 'repurpose', 'pause', 'replace', 'update', 'publish', 'draft', 'edit', 'schedule'];
+  const fields = ['actions', 'recommendations', 'adaptive_actions', 'plan_updates', 'updates', 'next_actions', 'follow_up_actions', 'content_changes', 'tasks'];
+  const sourceItems = fields.flatMap((field) => {
+    const value = input[field];
+    if (Array.isArray(value)) return value;
+    return [];
+  });
+  return sourceItems.map((item) => {
+    if (typeof item === 'string') return { action_title: item, recommendation: item };
+    return item;
+  }).filter((item) => {
+    if (!item || typeof item !== 'object') return false;
+    const actionText = [item.action_title, item.recommendation, item.title, item.topic, item.content_topic, item.reason, item.objective, item.goal].join(' ');
+    const hasExplicitActionId = Boolean(item.planned_action_id || item.action_id || item.update_id);
+    const hasActionShape = Boolean(item.action_title || item.recommendation || item.title || item.topic || item.content_topic);
+    const hasActionVerb = textIncludes(actionText, actionVerbs);
+    return hasExplicitActionId || (hasActionShape && hasActionVerb);
+  });
+};
+const collectStrategyActionItems = (input) => {
+  const actionVerbs = ['create', 'add', 'update', 'prepare', 'publish', 'revise', 'improve', 'optimize', 'launch', 'schedule', 'write', 'design', 'build'];
+  const fields = ['actions', 'recommendations', 'strategic_actions', 'action_plan', 'next_steps', 'growth_actions', 'content_recommendations', 'seo_recommendations', 'website_recommendations', 'local_area_actions', 'google_business_profile_actions', 'tasks'];
+  const sourceItems = fields.flatMap((field) => {
+    const value = input[field];
+    if (Array.isArray(value)) return value;
+    return [];
+  });
+  return sourceItems.map((item) => {
+    if (typeof item === 'string') return { action_title: item, recommendation: item };
+    return item;
+  }).filter((item) => {
+    if (!item || typeof item !== 'object') return false;
+    const actionText = [item.action_title, item.recommendation, item.title, item.topic, item.content_topic, item.reason, item.objective, item.goal, item.expected_impact].join(' ');
+    const hasExplicitActionId = Boolean(item.planned_action_id || item.action_id || item.recommendation_id || item.task_id);
+    const hasActionShape = Boolean(item.action_title || item.recommendation || item.title || item.topic || item.content_topic);
+    const hasActionVerb = textIncludes(actionText, actionVerbs);
+    return hasExplicitActionId || (hasActionShape && hasActionVerb);
+  });
+};
+const runDate = client.run_date || $now.setZone(client.timezone || 'Asia/Kolkata').toISODate();
+const isThirtyDayContentPlan = client.engine === '30_day_content_plan_engine';
+const isAdaptivePlanUpdate = client.engine === 'adaptive_plan_update';
+const isStrategyOrchestrator = client.engine === 'digital_marketing_strategy' || client.engine === 'digital_marketing_strategy_orchestrator';
+const defaultPublishDate = input.planned_publish_date || input.publish_date || input.planned_date || $now.setZone(client.timezone || 'Asia/Kolkata').plus({ days: 1 }).toISODate();
+const workflowRunPrefix = isStrategyOrchestrator ? 'digital_marketing_strategy_' : (isAdaptivePlanUpdate ? 'adaptive_plan_update_' : (isThirtyDayContentPlan ? '30_day_content_plan_' : 'daily_content_production_'));
+const sourceWorkflowRunId = input.source_workflow_run_id || client.engine_run_id || workflowRunPrefix + client.client_slug + '_' + runDate;
+const sourceEngineName = isStrategyOrchestrator ? 'digital_marketing_strategy_orchestrator' : (isAdaptivePlanUpdate ? 'adaptive_plan_update_engine' : (isThirtyDayContentPlan ? '30_day_content_plan_engine' : 'daily_content_production_plan_engine'));
+const sourcePlanType = isStrategyOrchestrator ? 'strategy_action_plan' : (isAdaptivePlanUpdate ? 'adaptive_plan_update' : (isThirtyDayContentPlan ? '30_day_content_plan' : 'daily_content_plan'));
+const rawItems = isStrategyOrchestrator ? collectStrategyActionItems(input) : (isAdaptivePlanUpdate ? collectAdaptivePlanUpdateItems(input) : (isThirtyDayContentPlan ? collectThirtyDayContentItems(input) : asArray(input.items || input.plan_items || input.content_items || input.actions)));
+const topic = input.topic || input.planned_topic || asArray(client.service_keywords || client.priority_services)[0] || 'Daily awareness content';
+const format = input.format || input.planned_content_format || input.content_format || 'reel';
+const platforms = asArray(input.platforms || input.planned_platforms || input.platform || ['instagram', 'facebook']);
+const generatedScript = input.generated_script || input.script || '';
+const generatedCaption = input.generated_caption || input.caption || '';
+const fallbackItem = {
+  planned_topic: topic,
+  planned_content_format: format,
+  planned_platforms: platforms,
+  planned_publish_date: defaultPublishDate,
+  content_objective: input.content_objective || 'Awareness and timely consultation',
+  generated_script: generatedScript,
+  generated_caption: generatedCaption,
+  category: input.category || 'publishing',
+  priority: input.priority || 'high'
+};
+const sourceItems = rawItems.length ? rawItems : (isThirtyDayContentPlan || isAdaptivePlanUpdate || isStrategyOrchestrator ? [] : [fallbackItem]);
+const baseContext = {
+  client,
+  input,
+  runDate,
+  defaultPublishDate,
+  sourceWorkflowRunId,
+  sourceEngineName,
+  sourcePlanType,
+  topic,
+  format,
+  platforms,
+  generatedScript,
+  generatedCaption,
+  fallbackItem,
+  workspaceActionTypes,
+  isAdaptivePlanUpdate,
+  isStrategyOrchestrator,
+  planIdPrefix: isStrategyOrchestrator ? 'strategy_action_plan_' : (isAdaptivePlanUpdate ? 'adaptive_plan_update_' : (isThirtyDayContentPlan ? '30_day_content_plan_' : 'daily_content_plan_')),
+  itemIdPrefix: isStrategyOrchestrator ? 'strategy_action_item_' : (isAdaptivePlanUpdate ? 'adaptive_plan_update_item_' : (isThirtyDayContentPlan ? '30_day_content_item_' : 'daily_content_item_')),
+  actionIdPrefix: isStrategyOrchestrator ? 'strategy_action_' : (isAdaptivePlanUpdate ? 'adaptive_plan_update_action_' : (isThirtyDayContentPlan ? '30_day_content_action_' : 'daily_content_action_'))
+};
+const items = sourceItems.map((item, index) => normalizeWorkspacePlanItem(item, { ...baseContext, index }));
+const workspacePayload = buildWorkspacePayload(items, baseContext);
+const workspaceEnv = { WORKSPACE_TASKS_API_URL: $env.WORKSPACE_TASKS_API_URL, WORKSPACE_APP_BASE_URL: $env.WORKSPACE_APP_BASE_URL, WORKSPACE_SYNC_ENABLED: $env.WORKSPACE_SYNC_ENABLED, WORKSPACE_API_INTERNAL_TOKEN: $env.WORKSPACE_API_INTERNAL_TOKEN, clientMode: client.mode, executionMode: $execution.mode };
+const workspaceConfig = shouldEnableWorkspaceSync(input, workspaceEnv);
+const workspaceSync = await syncWorkspaceTasks(workspacePayload, { ...workspaceConfig, httpRequest: async (options) => this.helpers.httpRequest(options) });
+return {
+  json: {
+    client_id: client.client_slug,
+    client_uuid: client.id,
+    client_name: client.client_name,
+    engine: isStrategyOrchestrator ? 'digital_marketing_strategy_orchestrator' : (isAdaptivePlanUpdate ? 'adaptive_plan_update' : (isThirtyDayContentPlan ? '30_day_content_plan_engine' : 'daily_content_production')),
+    source_engine_name: sourceEngineName,
+    source_plan_type: sourcePlanType,
+    source_workflow_run_id: sourceWorkflowRunId,
+    status: 'success',
+    summary: isStrategyOrchestrator ? 'Digital marketing strategy action plan prepared and actionable items mapped to Team Workspace sync.' : (isAdaptivePlanUpdate ? 'Adaptive plan update prepared and actionable items mapped to Team Workspace sync.' : (isThirtyDayContentPlan ? '30-day content plan prepared and actionable items mapped to Team Workspace sync.' : 'Daily content production plan prepared and actionable items mapped to Team Workspace sync.')),
+    data_policy: 'configured_inputs_only_no_fake_live_data',
+    planned_items: items,
+    workspace_payload: workspacePayload,
+    workspace_sync: workspaceSync,
+    workspace_sync_enabled: workspaceSync.workspace_sync_enabled,
+    workspace_tasks_created: workspaceSync.workspace_tasks_created,
+    workspace_tasks_existing: workspaceSync.workspace_tasks_existing,
+    workspace_tasks_skipped: workspaceSync.workspace_tasks_skipped,
+    workspace_sync_errors: workspaceSync.workspace_sync_errors,
+    workspace_task_ids: workspaceSync.workspace_task_ids,
+    key_insights: ['Plan items are source-of-truth inputs for Team Workspace execution tasks.'],
+    recommendations: items.map((item) => 'Create and execute ' + item.planned_content_format + ' for: ' + item.planned_topic),
+    next_actions: items.map((item) => 'Execute planned ' + item.planned_content_format + ' on ' + item.planned_platforms.join(', ') + ' for ' + item.planned_publish_date)
+  }
+};`
+    }
+  },
+  output: [{
+    client_id: 'aayu_geriatrics',
+    client_name: 'Aayu Geriatrics',
+    engine: 'daily_content_production',
+    source_engine_name: 'daily_content_production_plan_engine',
+    source_plan_type: 'daily_content_plan',
+    source_workflow_run_id: 'daily_content_production_aayu_geriatrics_2026-06-22',
+    status: 'success',
+    planned_items: [{
+      related_content_plan_id: 'daily_content_plan_aayu_geriatrics_2026-06-22',
+      related_content_plan_item_id: 'daily_content_item_aayu_geriatrics_2026_06_23_urinary_problems_in_older_adults_reel_1',
+      planned_action_id: 'daily_content_action_aayu_geriatrics_2026_06_23_urinary_problems_in_older_adults_reel_1',
+      planned_topic: 'Urinary problems in older adults',
+      planned_content_format: 'reel',
+      planned_platforms: ['instagram', 'facebook'],
+      planned_publish_date: '2026-06-23',
+      content_objective: 'Caregiver awareness and timely consultation',
+      category: 'publishing',
+      priority: 'high'
+    }],
+    workspace_sync_enabled: false,
+    workspace_tasks_created: 0,
+    workspace_tasks_existing: 0,
+    workspace_tasks_skipped: 1,
+    workspace_sync_errors: [],
+    workspace_task_ids: []
+  }]
+});
+
 const legacySkippedEngine = node({
   type: 'n8n-nodes-base.code',
   version: 2,
@@ -1408,9 +1742,9 @@ export default workflow('vip-intelligence-engine-orchestrator', 'VIP Intelligenc
     ))
     .onCase(1, legacySkippedEngine)
     .onCase(2, legacySkippedEngine)
-    .onCase(3, legacySkippedEngine)
+    .onCase(3, dailyContentProductionPlanEngine)
     .onCase(4, legacySkippedEngine)
-    .onCase(5, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(5, legacySkippedEngine)
     .onCase(6, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
     .onCase(7, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
     .onCase(8, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
@@ -1421,10 +1755,14 @@ export default workflow('vip-intelligence-engine-orchestrator', 'VIP Intelligenc
     .onCase(13, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
     .onCase(14, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
     .onCase(15, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
-    .onCase(16, legacySkippedEngine)
+    .onCase(16, dailyContentProductionPlanEngine)
     .onCase(17, legacySkippedEngine)
     .onCase(18, legacySkippedEngine)
     .onCase(19, legacySkippedEngine)
+    .onCase(20, legacySkippedEngine)
+    .onCase(21, dailyContentProductionPlanEngine)
+    .onCase(22, dailyContentProductionPlanEngine)
+    .onCase(23, dailyContentProductionPlanEngine)
   )
   .add(scheduleTrigger)
   .to(runtimeConfig);
