@@ -4,7 +4,7 @@ import WebSocket from 'ws'
 const env = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env || {}
 const supabaseUrl = env.SUPABASE_URL || env.VITE_SUPABASE_URL || ''
 const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY || ''
-const internalWorkspaceToken = env.WORKSPACE_API_INTERNAL_TOKEN || ''
+const internalWorkspaceToken = normalizeSecret(env.WORKSPACE_API_INTERNAL_TOKEN)
 
 export type ApiRequest<T = Record<string, unknown>> = {
   method?: string
@@ -308,15 +308,23 @@ function getHeader(request: ApiRequest, name: string) {
 function readBearerToken(request: ApiRequest) {
   const authHeader = getHeader(request, 'authorization')
   const match = /^Bearer\s+(.+)$/i.exec(authHeader)
-  return match?.[1]?.trim() || ''
+  return normalizeSecret(match?.[1])
 }
 
 function readInternalToken(request: ApiRequest) {
-  const headerToken = getHeader(request, 'x-workspace-api-token').trim()
+  const headerToken = normalizeSecret(getHeader(request, 'x-workspace-api-token'))
   if (headerToken) return headerToken
   const bearerToken = readBearerToken(request)
   if (bearerToken && internalWorkspaceToken && constantTimeEqual(bearerToken, internalWorkspaceToken)) return bearerToken
   return ''
+}
+
+function normalizeSecret(value?: string) {
+  return String(value || '')
+    .trim()
+    .replace(/^\uFEFF/, '')
+    .replace(/^["']|["']$/g, '')
+    .trim()
 }
 
 function constantTimeEqual(left: string, right: string) {
