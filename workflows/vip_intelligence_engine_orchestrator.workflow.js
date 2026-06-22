@@ -204,25 +204,23 @@ const client = $('Prepare Engine Item').item.json;
 const missing = [];
 if (!client.facebook_page_id) missing.push('facebook_page_id');
 if (!client.facebook_page_access_token_env_key) missing.push('facebook_page_access_token_env_key');
-function resolveEnvKey(key) {
-  if (!key) return { env_key: null, present: false, resolved: false, status: 'missing_reference' };
-  try {
-    const present = Boolean($env[key]);
-    return { env_key: key, present, resolved: present, status: present ? 'resolved' : 'missing' };
-  } catch (error) {
-    return { env_key: key, present: null, resolved: false, status: 'access_denied' };
-  }
-}
-const facebook_credential_resolution = resolveEnvKey(client.facebook_page_access_token_env_key);
-if (client.facebook_page_access_token_env_key && !facebook_credential_resolution.resolved) missing.push('env:' + client.facebook_page_access_token_env_key + ':' + facebook_credential_resolution.status);
+const facebook_credential_resolution = {
+  env_key: client.facebook_page_access_token_env_key || null,
+  configured: Boolean(client.facebook_page_access_token_env_key),
+  present: null,
+  resolved: false,
+  status: client.facebook_page_access_token_env_key ? 'n8n_credential_required' : 'missing_reference',
+  mechanism: 'n8n_credential_object_or_external_resolver_required'
+};
+if (client.facebook_page_access_token_env_key) missing.push('credential:' + client.facebook_page_access_token_env_key + ':' + facebook_credential_resolution.status);
 return {
   json: {
     ...client,
     engine_run_id: $json.engine_run_id,
-    facebook_config_valid: missing.length === 0,
+    facebook_config_valid: false,
     missing_config: missing,
-    error_message: missing.length ? 'Missing required Facebook config or environment credential reference: ' + missing.join(', ') : '',
-    facebook_token_source: client.facebook_page_access_token_env_key ? 'env:' + client.facebook_page_access_token_env_key : null,
+    error_message: missing.length ? 'Facebook credential requires n8n credential object or external resolver: ' + missing.join(', ') : 'Facebook credential resolver is not configured.',
+    facebook_token_source: client.facebook_page_access_token_env_key ? 'credential_ref:' + client.facebook_page_access_token_env_key : null,
     facebook_credential_resolution
   }
 };`
@@ -277,61 +275,16 @@ const collectFacebookGraphData = node({
       language: 'javaScript',
       jsCode: `
 const item = $json;
-const base = 'https://graph.facebook.com/' + item.graph_api_version;
-const token = item.facebook_page_access_token_env_key ? $env[item.facebook_page_access_token_env_key] : '';
-const pageId = item.facebook_page_id;
-const pageMetricNames = item.page_metric_names || [];
-const postMetricNames = item.post_metric_names || [];
-async function graphGet(path, qs = {}) {
-  const query = { ...qs, access_token: token };
-  return await this.helpers.httpRequest({
-    method: 'GET',
-    url: base + '/' + path,
-    qs: query,
-    json: true,
-    timeout: 30000,
-  });
-}
-async function safeGet(label, path, qs = {}) {
-  try {
-    return { ok: true, label, data: await graphGet.call(this, path, qs) };
-  } catch (error) {
-    return { ok: false, label, error: error.message || String(error), response: error.response?.body ?? null };
-  }
-}
-const pageProfile = await safeGet.call(this, 'page_profile', pageId, { fields: 'id,name,category,fan_count,followers_count,link,about' });
-const pageMetrics = [];
-for (const metric of pageMetricNames) {
-  const result = await safeGet.call(this, 'page_metric:' + metric, pageId + '/insights', {
-    metric,
-    since: item.page_metric_since,
-    until: item.date_range_end,
-  });
-  pageMetrics.push({ metric, ...result });
-}
-const recentPostsResult = await safeGet.call(this, 'recent_posts', pageId + '/posts', {
-  fields: 'id,message,created_time,permalink_url,full_picture,status_type,attachments{media_type,type,url},shares,comments.summary(true),reactions.summary(true)',
-  limit: 25,
-});
-const posts = recentPostsResult.ok ? (recentPostsResult.data.data || []) : [];
-const postInsights = [];
-for (const post of posts) {
-  const metricResults = [];
-  for (const metric of postMetricNames) {
-    const result = await safeGet.call(this, 'post_metric:' + metric, post.id + '/insights', { metric });
-    metricResults.push({ metric, ...result });
-  }
-  postInsights.push({ post_id: post.id, metrics: metricResults });
-}
 return {
   json: {
     ...item,
     facebook_api_results: {
-      page_profile: pageProfile,
-      page_metrics: pageMetrics,
-      recent_posts: recentPostsResult,
-      posts,
-      post_insights: postInsights,
+      page_profile: { ok: false, label: 'page_profile', error_category: 'credential_resolver_not_configured' },
+      page_metrics: [],
+      recent_posts: { ok: false, label: 'recent_posts', error_category: 'credential_resolver_not_configured' },
+      posts: [],
+      post_insights: [],
+      credential_resolution: item.facebook_credential_resolution || null,
     }
   }
 };`
