@@ -1,4 +1,4 @@
-import { allow, bodyWithActor, createActivity, currentActor, requireWorkspaceAuth, type ApiRequest, type ApiResponse } from '../../../_shared'
+import { allow, bodyWithActor, createActivity, currentActor, requireWorkspaceAuth, type ApiRequest, type ApiResponse } from '../../../_shared.js'
 
 export default async function handler(request: ApiRequest<Record<string, unknown>>, response: ApiResponse) {
   if (request.method !== 'PATCH') return allow(response, ['PATCH'])

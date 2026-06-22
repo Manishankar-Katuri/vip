@@ -1,4 +1,4 @@
-import { allow, bodyWithActor, createActivity, currentActor, getTask, requireWorkspaceAuth, type ApiRequest, type ApiResponse } from '../../_shared'
+import { allow, bodyWithActor, createActivity, currentActor, getTask, requireWorkspaceAuth, type ApiRequest, type ApiResponse } from '../../_shared.js'
 
 const taskLinkFields: Record<string, string> = {
   raw_video: 'raw_file_url',

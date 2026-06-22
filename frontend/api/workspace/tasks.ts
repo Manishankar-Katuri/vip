@@ -8,7 +8,7 @@ import {
   requireWorkspaceAuth,
   type ApiRequest,
   type ApiResponse,
-} from './_shared'
+} from './_shared.js'
 
 export default async function handler(request: ApiRequest, response: ApiResponse) {
   if (request.method === 'GET') return listTasks(request, response)

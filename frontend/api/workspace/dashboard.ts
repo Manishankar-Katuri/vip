@@ -1,4 +1,4 @@
-import { allow, dashboardSummary, hydrateTasks, requireWorkspaceAuth, type ApiRequest, type ApiResponse } from './_shared'
+import { allow, dashboardSummary, hydrateTasks, requireWorkspaceAuth, type ApiRequest, type ApiResponse } from './_shared.js'
 
 export default async function handler(request: ApiRequest, response: ApiResponse) {
   if (request.method !== 'GET') return allow(response, ['GET'])

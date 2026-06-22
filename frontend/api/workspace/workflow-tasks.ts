@@ -11,7 +11,7 @@ import {
   type SupabaseAdmin,
   type ApiRequest,
   type ApiResponse,
-} from './_shared'
+} from './_shared.js'
 
 type WorkflowItem = {
   related_content_plan_id?: string
