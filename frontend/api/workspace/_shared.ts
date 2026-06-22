@@ -2,8 +2,8 @@ import { createClient } from '@supabase/supabase-js'
 import WebSocket from 'ws'
 
 const env = (globalThis as unknown as { process?: { env?: Record<string, string | undefined> } }).process?.env || {}
-const supabaseUrl = env.SUPABASE_URL || env.VITE_SUPABASE_URL || ''
-const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY || ''
+const supabaseUrl = normalizeSecret(env.SUPABASE_URL || env.VITE_SUPABASE_URL)
+const serviceRoleKey = normalizeSecret(env.SUPABASE_SERVICE_ROLE_KEY)
 const internalWorkspaceToken = normalizeSecret(env.WORKSPACE_API_INTERNAL_TOKEN)
 
 export type ApiRequest<T = Record<string, unknown>> = {
