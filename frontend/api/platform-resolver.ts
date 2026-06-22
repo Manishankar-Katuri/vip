@@ -48,6 +48,12 @@ type ResolverResponse = {
   client_slug: string
   platform: Platform
   operation: string
+  credential: {
+    configured: boolean
+    resolved: boolean
+    mechanism: 'backend_env_reference'
+    status: 'configured' | 'missing_config' | 'missing_secret' | 'failed'
+  }
   data: Record<string, unknown>
   metrics: Record<string, unknown>
   availability: {
@@ -75,7 +81,7 @@ export default async function handler(request: ApiRequest<ResolverRequest>, resp
   }
 
   if (!isAuthorized(request.headers)) {
-    return response.status(401).json({ error: 'Unauthorized' })
+    return response.status(401).json(sanitizeResponse({ error: 'Unauthorized' }))
   }
 
   const body = parseBody(request.body)
@@ -84,49 +90,47 @@ export default async function handler(request: ApiRequest<ResolverRequest>, resp
   const operation = asOperation(platform, body.operation)
 
   if (!clientSlug || !platform || !operation) {
-    return response.status(400).json({
+    return response.status(400).json(sanitizeResponse({
       status: 'failed',
       error: 'client_slug, platform, and operation are required',
-    })
+    }))
   }
 
   try {
     const client = await loadClientConfig(clientSlug)
     if (!client) {
-      return response.status(404).json(failure(clientSlug, platform, operation, 'client_not_found', 'Client is not configured for platform resolution.'))
+      return response.status(404).json(sanitizeResponse(failure(clientSlug, platform, operation, 'client_not_found', 'Client is not configured for platform resolution.')))
     }
 
     const credential = resolveCredentialStatus(client, platform)
     if (!credential.sourceId) {
-      return response.status(200).json(failure(clientSlug, platform, operation, 'missing_source_id', `${platform} source ID is not configured.`))
+      return response.status(200).json(sanitizeResponse(failure(clientSlug, platform, operation, 'missing_source_id', `${platform} source ID is not configured.`, credential)))
     }
     if (!credential.envKey) {
-      return response.status(200).json(failure(clientSlug, platform, operation, 'missing_credential_reference', `${platform} credential reference is not configured.`))
+      return response.status(200).json(sanitizeResponse(failure(clientSlug, platform, operation, 'missing_credential_reference', `${platform} credential reference is not configured.`, credential)))
     }
     if (!isAllowedEnvKey(platform, credential.envKey)) {
-      return response.status(200).json(failure(clientSlug, platform, operation, 'invalid_credential_reference', `${platform} credential reference is outside the allowed namespace.`))
+      return response.status(200).json(sanitizeResponse(failure(clientSlug, platform, operation, 'invalid_credential_reference', `${platform} credential reference is outside the allowed namespace.`, credential)))
     }
     if (!credential.present) {
-      return response.status(200).json(failure(clientSlug, platform, operation, 'missing_credential_value', `${platform} credential value is not available to the backend runtime.`))
+      return response.status(200).json(sanitizeResponse(failure(clientSlug, platform, operation, 'missing_runtime_secret', `${platform} credential value is not available to the backend runtime.`, credential)))
     }
 
     if (operation === 'config_check') {
-      return response.status(200).json(success(clientSlug, platform, operation, {
-        credential_reference: credential.envKey,
+      return response.status(200).json(sanitizeResponse(success(clientSlug, platform, operation, credential, {
         source_id_configured: true,
-      }))
+      })))
     }
 
-    return response.status(200).json({
-      ...failure(clientSlug, platform, operation, 'live_adapter_not_enabled', `${platform} live API adapter is not enabled yet; no live data was fabricated.`),
+    return response.status(200).json(sanitizeResponse({
+      ...failure(clientSlug, platform, operation, 'live_adapter_not_enabled', `${platform} live API adapter is not enabled yet; no live data was fabricated.`, credential),
       data: {
-        credential_reference: credential.envKey,
         source_id_configured: true,
         params: sanitizeParams(platform, operation, body.params),
       },
-    })
+    }))
   } catch (error) {
-    return response.status(500).json(failure(clientSlug, platform, operation, 'resolver_error', sanitizeError(error)))
+    return response.status(500).json(sanitizeResponse(failure(clientSlug, platform, operation, 'resolver_error', sanitizeError(error))))
   }
 }
 
@@ -233,12 +237,15 @@ function sanitizeParamValue(value: unknown): string | number | boolean | string[
   return undefined
 }
 
-function success(clientSlug: string, platform: Platform, operation: string, data: Record<string, unknown>): ResolverResponse {
+type CredentialStatus = ReturnType<typeof resolveCredentialStatus>
+
+function success(clientSlug: string, platform: Platform, operation: string, credential: CredentialStatus, data: Record<string, unknown>): ResolverResponse {
   return {
     status: 'success',
     client_slug: clientSlug,
     platform,
     operation,
+    credential: credentialResponse(credential, 'configured'),
     data,
     metrics: {},
     availability: { ...emptyAvailability },
@@ -246,17 +253,54 @@ function success(clientSlug: string, platform: Platform, operation: string, data
   }
 }
 
-function failure(clientSlug: string, platform: Platform, operation: string, code: string, message: string): ResolverResponse {
+function failure(clientSlug: string, platform: Platform, operation: string, code: string, message: string, credential?: CredentialStatus): ResolverResponse {
   return {
-    status: code === 'resolver_error' ? 'failed' : 'skipped_missing_config',
+    status: failureStatus(code),
     client_slug: clientSlug,
     platform,
     operation,
+    credential: credentialResponse(credential, credentialFailureStatus(code)),
     data: {},
     metrics: {},
     availability: { ...emptyAvailability },
     errors: [{ code, message }],
   }
+}
+
+function failureStatus(code: string): ResolverStatus {
+  if (['missing_runtime_secret', 'invalid_credential_reference', 'resolver_error'].includes(code)) return 'failed'
+  return 'skipped_missing_config'
+}
+
+function credentialFailureStatus(code: string): ResolverResponse['credential']['status'] {
+  if (code === 'missing_runtime_secret') return 'missing_secret'
+  if (code === 'missing_credential_reference' || code === 'missing_source_id') return 'missing_config'
+  return 'failed'
+}
+
+function credentialResponse(credential: CredentialStatus | undefined, status: ResolverResponse['credential']['status']): ResolverResponse['credential'] {
+  return {
+    configured: Boolean(credential?.envKey),
+    resolved: Boolean(credential?.present),
+    mechanism: 'backend_env_reference',
+    status,
+  }
+}
+
+function sanitizeResponse(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sanitizeResponse)
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => isAllowedResponseKey(key))
+      .map(([key, item]) => [key, sanitizeResponse(item)]),
+  )
+}
+
+function isAllowedResponseKey(key: string) {
+  const normalized = key.toLowerCase()
+  if (normalized.endsWith('_env_key')) return true
+  return !/(token|api_key|authorization|secret)/i.test(normalized)
 }
 
 function sanitizeError(error: unknown) {

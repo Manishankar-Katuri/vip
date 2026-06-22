@@ -885,8 +885,10 @@ return {
     status: 'failed',
     summary: client.error_message,
     key_insights: [],
-    recommendations: ['Add facebook_page_id, facebook_page_access_token_env_key, and the referenced environment token for this client.'],
-    next_actions: ['Update the clients table/environment credential reference and rerun the manual test.']
+    recommendations: [],
+    next_actions: ['Configure the secure platform resolver endpoint and n8n internal header credential before enabling Facebook live collection.'],
+    missing_config: client.missing_config || [],
+    platform_resolver: client.platform_resolver_response || null
   }
 };`
     }
