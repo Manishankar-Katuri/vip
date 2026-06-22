@@ -204,8 +204,17 @@ const client = $('Prepare Engine Item').item.json;
 const missing = [];
 if (!client.facebook_page_id) missing.push('facebook_page_id');
 if (!client.facebook_page_access_token_env_key) missing.push('facebook_page_access_token_env_key');
-const tokenFromEnv = client.facebook_page_access_token_env_key ? $env[client.facebook_page_access_token_env_key] : '';
-if (client.facebook_page_access_token_env_key && !tokenFromEnv) missing.push('env:' + client.facebook_page_access_token_env_key);
+function resolveEnvKey(key) {
+  if (!key) return { env_key: null, present: false, resolved: false, status: 'missing_reference' };
+  try {
+    const present = Boolean($env[key]);
+    return { env_key: key, present, resolved: present, status: present ? 'resolved' : 'missing' };
+  } catch (error) {
+    return { env_key: key, present: null, resolved: false, status: 'access_denied' };
+  }
+}
+const facebook_credential_resolution = resolveEnvKey(client.facebook_page_access_token_env_key);
+if (client.facebook_page_access_token_env_key && !facebook_credential_resolution.resolved) missing.push('env:' + client.facebook_page_access_token_env_key + ':' + facebook_credential_resolution.status);
 return {
   json: {
     ...client,
@@ -213,7 +222,8 @@ return {
     facebook_config_valid: missing.length === 0,
     missing_config: missing,
     error_message: missing.length ? 'Missing required Facebook config or environment credential reference: ' + missing.join(', ') : '',
-    facebook_token_source: client.facebook_page_access_token_env_key ? 'env:' + client.facebook_page_access_token_env_key : null
+    facebook_token_source: client.facebook_page_access_token_env_key ? 'env:' + client.facebook_page_access_token_env_key : null,
+    facebook_credential_resolution
   }
 };`
     }
