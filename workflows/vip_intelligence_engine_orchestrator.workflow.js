@@ -45,7 +45,7 @@ return {
     run_date: runDate,
     timezone: 'Asia/Kolkata',
     default_engine: 'facebook_intelligence',
-    graph_api_version: input.graph_api_version || $env.META_GRAPH_API_VERSION || 'v23.0',
+    graph_api_version: input.graph_api_version || 'v23.0',
     date_range_start: last7Days,
     page_metric_since: yesterday,
     date_range_end: today,
