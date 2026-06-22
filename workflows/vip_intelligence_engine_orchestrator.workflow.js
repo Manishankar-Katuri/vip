@@ -4,7 +4,7 @@ const manualTrigger = trigger({
   type: 'n8n-nodes-base.manualTrigger',
   version: 1,
   config: { name: 'Manual Trigger - Test Individual Engine', position: [120, 260] },
-  output: [{ client_id: 'aayu_geriatrics', engine: 'facebook_intelligence', mode: 'manual' }]
+  output: [{ client_id: 'client_slug_here', engine: 'facebook_intelligence', mode: 'manual' }]
 });
 
 const scheduleTrigger = trigger({
@@ -66,7 +66,7 @@ return {
     date_range_end: '2026-06-15',
     mode: 'manual',
     engine: 'facebook_intelligence',
-    client_slug: 'aayu_geriatrics'
+    client_slug: 'client_slug_here'
   }]
 });
 
@@ -78,7 +78,7 @@ const loadClients = node({
     position: [720, 390],
     parameters: {
       operation: 'executeQuery',
-      query: "select id, client_slug, client_name, industry, location, facebook_page_id, facebook_page_access_token, instagram_business_id, google_business_profile_id, active from clients where active = true and ($1 = '' or client_slug = $1 or id::text = $1) order by client_slug;",
+      query: "select id, client_slug, client_name, industry, location, facebook_page_id, facebook_page_access_token_env_key, instagram_business_id, instagram_access_token_env_key, youtube_channel_id, youtube_api_key_env_key, google_business_profile_account_id, google_business_profile_location_id, google_business_profile_place_id, google_business_profile_url, google_business_profile_enabled, coalesce(google_business_profile_credential_env_key, google_business_profile_credential_ref) as google_business_profile_credential_env_key, website_url, primary_domain, sitemap_url, robots_txt_url, target_locations, service_keywords, priority_services, seo_enabled, website_audit_enabled, competitor_names, competitor_websites, competitor_google_business_urls, competitor_instagram_handles, competitor_facebook_pages, competitor_youtube_channels, competitor_enabled, review_platforms, review_response_policy, reputation_enabled, active_offers, seasonal_campaigns, campaign_goals, campaign_enabled, engine_cadence_config, daily_automation_enabled, active from clients where active = true and ($1 = '' or client_slug = $1 or id::text = $1) order by client_slug;",
       options: {
         queryReplacement: expr('{{ $("runtime_config").item.json.client_slug || "" }}'),
         largeNumbersOutput: 'numbers'
@@ -88,12 +88,16 @@ const loadClients = node({
   },
   output: [{
     id: '00000000-0000-0000-0000-000000000001',
-    client_slug: 'aayu_geriatrics',
-    client_name: 'Aayu Geriatrics',
+    client_slug: 'client_slug_here',
+    client_name: 'Client Name',
     industry: 'Healthcare',
     location: 'Hyderabad',
     facebook_page_id: '123456789',
-    facebook_page_access_token: '[secure]',
+    facebook_page_access_token_env_key: 'META_PAGE_TOKEN_CLIENT_SLUG',
+    website_url: 'https://example.com',
+    seo_enabled: true,
+    website_audit_enabled: true,
+    competitor_enabled: false,
     active: true
   }]
 });
@@ -126,8 +130,8 @@ return {
   },
   output: [{
     id: '00000000-0000-0000-0000-000000000001',
-    client_slug: 'aayu_geriatrics',
-    client_name: 'Aayu Geriatrics',
+    client_slug: 'client_slug_here',
+    client_name: 'Client Name',
     engine: 'facebook_intelligence',
     mode: 'manual',
     graph_api_version: 'v23.0'
@@ -151,6 +155,14 @@ const engineRouter = switchCase({
           { outputKey: 'competitor_intelligence', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'competitor_intelligence' }], combinator: 'and' } },
           { outputKey: 'google_business_intelligence', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'google_business_intelligence' }], combinator: 'and' } },
           { outputKey: 'review_intelligence', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'review_intelligence' }], combinator: 'and' } },
+          { outputKey: 'website_audit_intelligence', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'website_audit_intelligence' }], combinator: 'and' } },
+          { outputKey: 'seo_intelligence', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'seo_intelligence' }], combinator: 'and' } },
+          { outputKey: 'local_seo_intelligence', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'local_seo_intelligence' }], combinator: 'and' } },
+          { outputKey: 'keyword_opportunity_intelligence', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'keyword_opportunity_intelligence' }], combinator: 'and' } },
+          { outputKey: 'content_gap_intelligence', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'content_gap_intelligence' }], combinator: 'and' } },
+          { outputKey: 'landing_page_conversion_intelligence', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'landing_page_conversion_intelligence' }], combinator: 'and' } },
+          { outputKey: 'campaign_offer_intelligence', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'campaign_offer_intelligence' }], combinator: 'and' } },
+          { outputKey: 'digital_marketing_strategy', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'digital_marketing_strategy' }], combinator: 'and' } },
           { outputKey: 'social_media_strategy', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'social_media_strategy' }], combinator: 'and' } },
           { outputKey: 'content_calendar_strategy', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'content_calendar_strategy' }], combinator: 'and' } },
           { outputKey: 'campaign_strategy', conditions: { options: { caseSensitive: false, leftValue: '', typeValidation: 'strict' }, conditions: [{ leftValue: expr('{{ $json.engine }}'), operator: { type: 'string', operation: 'equals' }, rightValue: 'campaign_strategy' }], combinator: 'and' } },
@@ -191,19 +203,22 @@ const validateFacebookConfig = node({
 const client = $('Prepare Engine Item').item.json;
 const missing = [];
 if (!client.facebook_page_id) missing.push('facebook_page_id');
-if (!client.facebook_page_access_token) missing.push('facebook_page_access_token');
+if (!client.facebook_page_access_token_env_key) missing.push('facebook_page_access_token_env_key');
+const tokenFromEnv = client.facebook_page_access_token_env_key ? $env[client.facebook_page_access_token_env_key] : '';
+if (client.facebook_page_access_token_env_key && !tokenFromEnv) missing.push('env:' + client.facebook_page_access_token_env_key);
 return {
   json: {
     ...client,
     engine_run_id: $json.engine_run_id,
     facebook_config_valid: missing.length === 0,
     missing_config: missing,
-    error_message: missing.length ? 'Missing required Facebook config: ' + missing.join(', ') : ''
+    error_message: missing.length ? 'Missing required Facebook config or environment credential reference: ' + missing.join(', ') : '',
+    facebook_token_source: client.facebook_page_access_token_env_key ? 'env:' + client.facebook_page_access_token_env_key : null
   }
 };`
     }
   },
-  output: [{ facebook_config_valid: true, engine_run_id: '11111111-1111-1111-1111-111111111111', client_slug: 'aayu_geriatrics' }]
+  output: [{ facebook_config_valid: true, engine_run_id: '11111111-1111-1111-1111-111111111111', client_slug: 'client_slug_here', facebook_token_source: 'env:META_PAGE_TOKEN_CLIENT_SLUG' }]
 });
 
 const facebookConfigValid = ifElse({
@@ -253,7 +268,7 @@ const collectFacebookGraphData = node({
       jsCode: `
 const item = $json;
 const base = 'https://graph.facebook.com/' + item.graph_api_version;
-const token = item.facebook_page_access_token;
+const token = item.facebook_page_access_token_env_key ? $env[item.facebook_page_access_token_env_key] : '';
 const pageId = item.facebook_page_id;
 const pageMetricNames = item.page_metric_names || [];
 const postMetricNames = item.post_metric_names || [];
@@ -343,13 +358,47 @@ const totalReactions = posts.reduce((sum, post) => sum + reactions(post), 0);
 const totalComments = posts.reduce((sum, post) => sum + comments(post), 0);
 const totalShares = posts.reduce((sum, post) => sum + shares(post), 0);
 const metricErrors = [];
+const metricAvailability = {
+  available_metrics: [],
+  unavailable_metrics: [],
+  permission_blocked_metrics: [],
+  deprecated_metrics: [],
+  empty_metrics: []
+};
+function classifyMetricResult(result) {
+  const metric = result.metric || result.label || 'unknown_metric';
+  if (result.ok) {
+    const values = result.data?.data?.[0]?.values || [];
+    if (values.length === 0) metricAvailability.empty_metrics.push(metric);
+    else metricAvailability.available_metrics.push(metric);
+    return;
+  }
+  const text = [
+    result.error || '',
+    JSON.stringify(result.response || {})
+  ].join(' ').toLowerCase();
+  if (text.includes('permission') || text.includes('access') || text.includes('oauth') || text.includes('token')) {
+    metricAvailability.permission_blocked_metrics.push(metric);
+  } else if (text.includes('deprecated') || text.includes('unknown metric') || text.includes('not found') || text.includes('unsupported get request')) {
+    metricAvailability.deprecated_metrics.push(metric);
+  } else {
+    metricAvailability.unavailable_metrics.push(metric);
+  }
+}
 for (const result of [data.page_profile, data.recent_posts, ...(data.page_metrics || [])]) {
-  if (result && result.ok === false) metricErrors.push({ label: result.label, metric: result.metric || null, error: result.error || 'Unknown API error' });
+  if (!result) continue;
+  if (result.metric || String(result.label || '').includes('metric:')) classifyMetricResult(result);
+  if (result.ok === false) metricErrors.push({ label: result.label, metric: result.metric || null, classification: result.metric ? Object.entries(metricAvailability).find(([, values]) => values.includes(result.metric))?.[0] || 'unavailable_metrics' : 'request_failed', error: result.error || 'Unknown API error' });
 }
 for (const postInsight of data.post_insights || []) {
   for (const result of postInsight.metrics || []) {
-    if (result && result.ok === false) metricErrors.push({ label: result.label, post_id: postInsight.post_id, metric: result.metric || null, error: result.error || 'Unknown API error' });
+    if (!result) continue;
+    classifyMetricResult(result);
+    if (result.ok === false) metricErrors.push({ label: result.label, post_id: postInsight.post_id, metric: result.metric || null, classification: Object.entries(metricAvailability).find(([, values]) => values.includes(result.metric))?.[0] || 'unavailable_metrics', error: result.error || 'Unknown API error' });
   }
+}
+for (const key of Object.keys(metricAvailability)) {
+  metricAvailability[key] = [...new Set(metricAvailability[key])];
 }
 const calculated = {
   total_posts_analyzed: posts.length,
@@ -420,6 +469,7 @@ const analyticsSnapshot = {
   top_content: recentContent.slice().sort((a, b) => b.interactions - a.interactions).slice(0, 10),
   recent_content: recentContent,
   metric_errors: metricErrors,
+  metric_availability: metricAvailability,
 };
 const metricRows = [
   ['total_posts_analyzed', calculated.total_posts_analyzed, {}],
@@ -469,6 +519,7 @@ return {
       posts,
       post_insights: data.post_insights,
       calculated_metrics: calculated,
+      metric_availability: metricAvailability,
       metric_registry: {
         page_metric_names: $json.page_metric_names,
         post_metric_names: $json.post_metric_names
@@ -697,7 +748,7 @@ const updateEngineRunSuccess = node({
     position: [5520, 40],
     parameters: {
       operation: 'executeQuery',
-      query: expr("update engine_runs set status = 'success', completed_at = now(), metadata = coalesce(metadata, '{}'::jsonb) || jsonb_build_object('posts_analyzed', {{ $('Facebook - Normalize Data And Calculate Metrics').item.json.calculated_metrics.total_posts_analyzed }}, 'metrics_saved', {{ $('Facebook - Store normalized_metrics').item.json.metrics_saved }}, 'metric_errors_count', {{ $('Facebook - Normalize Data And Calculate Metrics').item.json.analytics_snapshot.metric_errors.length }}, 'analytics_snapshot_id', '{{ $('Facebook - Store social_analytics_snapshots').item.json.social_analytics_snapshot_id }}', 'analytics_summary_id', '{{ $('Facebook - Store social_analytics_daily_summaries').item.json.social_analytics_summary_id }}', 'insights_generated', true, 'intelligence_output_id', '{{ $('Facebook - Store intelligence_outputs').item.json.intelligence_output_id }}') where id = '{{ $('Facebook - Validate Required Client Config').item.json.engine_run_id }}'::uuid returning status;"),
+      query: expr("update engine_runs set status = 'success', completed_at = now(), metadata = coalesce(metadata, '{}'::jsonb) || jsonb_build_object('posts_analyzed', {{ $('Facebook - Normalize Data And Calculate Metrics').item.json.calculated_metrics.total_posts_analyzed }}, 'metrics_saved', {{ $('Facebook - Store normalized_metrics').item.json.metrics_saved }}, 'metric_errors_count', {{ $('Facebook - Normalize Data And Calculate Metrics').item.json.analytics_snapshot.metric_errors.length }}, 'metric_availability', $$ {{ JSON.stringify($('Facebook - Normalize Data And Calculate Metrics').item.json.analytics_snapshot.metric_availability).replace(/\\$\\$/g, '') }} $$::jsonb, 'analytics_snapshot_id', '{{ $('Facebook - Store social_analytics_snapshots').item.json.social_analytics_snapshot_id }}', 'analytics_summary_id', '{{ $('Facebook - Store social_analytics_daily_summaries').item.json.social_analytics_summary_id }}', 'insights_generated', true, 'intelligence_output_id', '{{ $('Facebook - Store intelligence_outputs').item.json.intelligence_output_id }}') where id = '{{ $('Facebook - Validate Required Client Config').item.json.engine_run_id }}'::uuid returning status;"),
       options: { largeNumbersOutput: 'numbers' }
     },
     credentials: { postgres: newCredential('Supabase Postgres') }
@@ -731,7 +782,7 @@ return {
 };`
     }
   },
-  output: [{ client_id: 'aayu_geriatrics', engine: 'facebook_intelligence', status: 'success', summary: '...', key_insights: [], recommendations: [], next_actions: [] }]
+  output: [{ client_id: 'client_slug_here', engine: 'facebook_intelligence', status: 'success', summary: '...', key_insights: [], recommendations: [], next_actions: [] }]
 });
 
 const updateEngineRunConfigFailure = node({
@@ -784,57 +835,369 @@ return {
     status: 'failed',
     summary: client.error_message,
     key_insights: [],
-    recommendations: ['Add facebook_page_id and facebook_page_access_token for this client.'],
-    next_actions: ['Update the clients table and rerun the manual test.']
+    recommendations: ['Add facebook_page_id, facebook_page_access_token_env_key, and the referenced environment token for this client.'],
+    next_actions: ['Update the clients table/environment credential reference and rerun the manual test.']
   }
 };`
     }
   },
-  output: [{ client_id: 'aayu_geriatrics', engine: 'facebook_intelligence', status: 'failed' }]
+  output: [{ client_id: 'client_slug_here', engine: 'facebook_intelligence', status: 'failed' }]
 });
 
-const placeholderNode = (name, engineName, x, y) =>
-  node({
-    type: 'n8n-nodes-base.set',
-    version: 3.4,
-    config: {
-      name,
-      position: [x, y],
-      parameters: {
-        mode: 'manual',
-        includeOtherFields: true,
-        assignments: {
-          assignments: [
-            { id: 'status', name: 'status', value: 'skipped', type: 'string' },
-            { id: 'engine', name: 'engine', value: engineName, type: 'string' },
-            { id: 'reason', name: 'reason', value: 'Engine not implemented in Phase 1', type: 'string' }
-          ]
-        }
-      }
+const guardedDigitalPresenceEngine = node({
+  type: 'n8n-nodes-base.code',
+  version: 2,
+  config: {
+    name: 'Digital Presence - Guarded Live/Public Data Engine',
+    position: [1620, 760],
+    parameters: {
+      mode: 'runOnceForEachItem',
+      language: 'javaScript',
+      jsCode: `
+const client = $json;
+const engine = client.engine;
+const sourceByEngine = {
+  google_business_intelligence: 'google_business_profile',
+  review_intelligence: 'reviews',
+  website_audit_intelligence: 'website',
+  seo_intelligence: 'seo',
+  local_seo_intelligence: 'local_seo',
+  keyword_opportunity_intelligence: 'keyword_research',
+  content_gap_intelligence: 'content_gap',
+  landing_page_conversion_intelligence: 'landing_page',
+  competitor_intelligence: 'competitor',
+  campaign_offer_intelligence: 'campaigns',
+  digital_marketing_strategy: 'strategy'
+};
+const asArray = (value) => Array.isArray(value) ? value : (value ? String(value).split(',').map((v) => v.trim()).filter(Boolean) : []);
+const stripTags = (html) => String(html || '').replace(/<script[\\s\\S]*?<\\/script>/gi, ' ').replace(/<style[\\s\\S]*?<\\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\\s+/g, ' ').trim();
+const matchOne = (html, regex) => String(html || '').match(regex)?.[1]?.trim() || '';
+const normalizeUrl = (url) => {
+  if (!url) return '';
+  return /^https?:\\/\\//i.test(url) ? url : 'https://' + url;
+};
+async function fetchPublicUrl(url) {
+  const normalizedUrl = normalizeUrl(url);
+  const startedAt = Date.now();
+  try {
+    const html = await this.helpers.httpRequest({
+      method: 'GET',
+      url: normalizedUrl,
+      json: false,
+      timeout: 20000,
+      headers: { 'User-Agent': 'VIP-Intelligence-Public-Audit/1.0' }
+    });
+    return { ok: true, url: normalizedUrl, status: 200, duration_ms: Date.now() - startedAt, html: String(html || '') };
+  } catch (error) {
+    return { ok: false, url: normalizedUrl, status: error.response?.statusCode || null, duration_ms: Date.now() - startedAt, error: error.message || String(error) };
+  }
+}
+function auditHtml(fetchResult, serviceKeywords = []) {
+  if (!fetchResult.ok) return { availability: fetchResult, findings: [], metrics: {}, text_sample: '' };
+  const html = fetchResult.html;
+  const text = stripTags(html);
+  const title = matchOne(html, /<title[^>]*>([\\s\\S]*?)<\\/title>/i);
+  const metaDescription = matchOne(html, /<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["'][^>]*>/i) || matchOne(html, /<meta[^>]+content=["']([^"']*)["'][^>]+name=["']description["'][^>]*>/i);
+  const canonical = matchOne(html, /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']*)["'][^>]*>/i);
+  const h1s = [...html.matchAll(/<h1[^>]*>([\\s\\S]*?)<\\/h1>/gi)].map((m) => stripTags(m[1])).filter(Boolean);
+  const h2s = [...html.matchAll(/<h2[^>]*>([\\s\\S]*?)<\\/h2>/gi)].map((m) => stripTags(m[1])).filter(Boolean).slice(0, 12);
+  const lowerText = text.toLowerCase();
+  const keywordHits = serviceKeywords.filter((keyword) => lowerText.includes(String(keyword).toLowerCase()));
+  const findings = [];
+  if (!title) findings.push('Missing page title');
+  if (!metaDescription) findings.push('Missing meta description');
+  if (h1s.length === 0) findings.push('Missing H1 heading');
+  if (!canonical) findings.push('Missing canonical link');
+  if (!/(call|book|appointment|contact|whatsapp|enquire|schedule)/i.test(text)) findings.push('CTA/contact wording not detected on public page');
+  if (!/(phone|tel:|@|address|location|map)/i.test(html + ' ' + text)) findings.push('Contact/location signal not detected on public page');
+  return {
+    availability: { ok: true, url: fetchResult.url, status: fetchResult.status, duration_ms: fetchResult.duration_ms },
+    findings,
+    metrics: {
+      title,
+      title_length: title.length,
+      meta_description: metaDescription,
+      meta_description_length: metaDescription.length,
+      h1s,
+      h2s,
+      canonical,
+      service_keyword_hits: keywordHits,
+      cta_detected: !findings.includes('CTA/contact wording not detected on public page'),
+      contact_detected: !findings.includes('Contact/location signal not detected on public page')
     },
-    output: [{ status: 'skipped', reason: 'Engine not implemented in Phase 1' }]
-  });
+    text_sample: text.slice(0, 1000)
+  };
+}
+const requirements = [];
+const serviceKeywords = asArray(client.service_keywords || client.priority_services);
+const targetLocations = asArray(client.target_locations || client.location);
+const setup = {
+  google_business_intelligence: ['google_business_profile_enabled=true', 'google_business_profile_account_id', 'google_business_profile_location_id', 'google_business_profile_credential_env_key'],
+  review_intelligence: ['reputation_enabled=true', 'review_platforms', 'Google Business Profile API/review source credential reference'],
+  website_audit_intelligence: ['website_audit_enabled=true', 'website_url'],
+  seo_intelligence: ['seo_enabled=true', 'website_url', 'service_keywords or priority_services'],
+  local_seo_intelligence: ['seo_enabled=true', 'website_url', 'target_locations'],
+  keyword_opportunity_intelligence: ['seo_enabled=true', 'service_keywords or priority_services', 'target_locations'],
+  content_gap_intelligence: ['website_url', 'service_keywords or priority_services'],
+  landing_page_conversion_intelligence: ['website_url'],
+  competitor_intelligence: ['competitor_enabled=true', 'competitor_websites and/or competitor public profile URLs'],
+  campaign_offer_intelligence: ['campaign_enabled=true', 'active_offers or seasonal_campaigns or campaign_goals'],
+  digital_marketing_strategy: ['At least one current engine output or configured digital-presence source']
+};
+function skip(summary, missing = setup[engine] || []) {
+  return {
+    json: {
+      ...client,
+      engine,
+      source_platform: sourceByEngine[engine] || 'digital_presence',
+      status: 'skipped_missing_config',
+      summary,
+      key_insights: [],
+      recommendations: ['Configure real API credentials or public URLs before running this engine.'],
+      next_actions: missing,
+      confidence_score: 0,
+      setup_requirements: missing,
+      raw_payload: { data_policy: 'no_fake_live_data', skipped_reason: summary, setup_requirements: missing }
+    }
+  };
+}
+if (engine === 'google_business_intelligence') {
+  const missing = [];
+  if (!client.google_business_profile_enabled) missing.push('google_business_profile_enabled=true');
+  if (!client.google_business_profile_account_id) missing.push('google_business_profile_account_id');
+  if (!client.google_business_profile_location_id) missing.push('google_business_profile_location_id');
+  if (!client.google_business_profile_credential_env_key) missing.push('google_business_profile_credential_env_key');
+  if (missing.length) return skip('Google Business Profile live data skipped because required API configuration is missing.', missing);
+  return skip('Google Business Profile API adapter is not bound in this workflow yet; no live Google data was fabricated.', ['Bind the configured GBP credential to a Google Business Profile API node/adapter.']);
+}
+if (engine === 'review_intelligence') {
+  const missing = [];
+  if (!client.reputation_enabled) missing.push('reputation_enabled=true');
+  if (asArray(client.review_platforms).length === 0) missing.push('review_platforms');
+  if (!client.google_business_profile_credential_env_key && asArray(client.review_platforms).some((p) => /google/i.test(p))) missing.push('google_business_profile_credential_env_key');
+  if (missing.length) return skip('Review intelligence skipped because no configured review API/public source is available.', missing);
+  return skip('Review source configured but live review adapter is not bound in this workflow yet; no review themes were fabricated.', ['Bind Google Business Profile reviews or another approved review API adapter.']);
+}
+if (['website_audit_intelligence', 'seo_intelligence', 'content_gap_intelligence', 'landing_page_conversion_intelligence'].includes(engine)) {
+  if ((engine === 'website_audit_intelligence' && !client.website_audit_enabled) || (engine === 'seo_intelligence' && !client.seo_enabled) || !client.website_url) {
+    const missing = [];
+    if (engine === 'website_audit_intelligence' && !client.website_audit_enabled) missing.push('website_audit_enabled=true');
+    if (engine === 'seo_intelligence' && !client.seo_enabled) missing.push('seo_enabled=true');
+    if (!client.website_url) missing.push('website_url');
+    return skip(engine + ' skipped because website configuration is missing.', missing);
+  }
+  const homepage = await fetchPublicUrl.call(this, client.website_url);
+  const audit = auditHtml(homepage, serviceKeywords);
+  const status = homepage.ok ? (audit.findings.length ? 'partial_success' : 'success') : 'failed';
+  const recommendations = audit.findings.map((finding) => 'Fix: ' + finding);
+  return {
+    json: {
+      ...client,
+      engine,
+      source_platform: sourceByEngine[engine],
+      status,
+      summary: homepage.ok ? 'Public website check completed from configured website_url.' : 'Website public check failed for configured website_url.',
+      key_insights: homepage.ok ? [
+        'Website responded from configured URL.',
+        'Title length: ' + audit.metrics.title_length,
+        'Meta description length: ' + audit.metrics.meta_description_length,
+        'Detected service keyword hits: ' + audit.metrics.service_keyword_hits.length
+      ] : [homepage.error || 'Website request failed'],
+      recommendations,
+      next_actions: recommendations,
+      confidence_score: homepage.ok ? 0.7 : 0.2,
+      raw_payload: { data_policy: 'public_website_check_only', homepage: audit, service_keywords: serviceKeywords, target_locations: targetLocations }
+    }
+  };
+}
+if (engine === 'competitor_intelligence') {
+  const competitorWebsites = asArray(client.competitor_websites);
+  if (!client.competitor_enabled || competitorWebsites.length === 0) {
+    const missing = [];
+    if (!client.competitor_enabled) missing.push('competitor_enabled=true');
+    if (competitorWebsites.length === 0) missing.push('competitor_websites');
+    return skip('Competitor intelligence skipped because configured competitor public sources are missing.', missing);
+  }
+  const competitorResults = [];
+  for (const competitorUrl of competitorWebsites.slice(0, 5)) {
+    const fetched = await fetchPublicUrl.call(this, competitorUrl);
+    competitorResults.push({ url: normalizeUrl(competitorUrl), audit: auditHtml(fetched, serviceKeywords) });
+  }
+  return {
+    json: {
+      ...client,
+      engine,
+      source_platform: 'competitor',
+      status: competitorResults.some((result) => result.audit.availability.ok) ? 'partial_success' : 'failed',
+      summary: 'Competitor public website checks completed only for configured competitor_websites.',
+      key_insights: competitorResults.map((result) => result.url + ': ' + (result.audit.availability.ok ? 'reachable' : 'not reachable')),
+      recommendations: ['Review competitor positioning manually from the captured public website signals before making claims.'],
+      next_actions: ['Add official competitor GBP/social URLs and approved APIs for richer competitor intelligence.'],
+      confidence_score: 0.55,
+      raw_payload: { data_policy: 'configured_public_competitor_sources_only', competitor_results: competitorResults }
+    }
+  };
+}
+if (engine === 'local_seo_intelligence' || engine === 'keyword_opportunity_intelligence') {
+  const missing = [];
+  if (!client.seo_enabled) missing.push('seo_enabled=true');
+  if (serviceKeywords.length === 0) missing.push('service_keywords or priority_services');
+  if (targetLocations.length === 0) missing.push('target_locations or location');
+  if (missing.length) return skip(engine + ' skipped because SEO keyword/location config is missing.', missing);
+  const keywordIdeas = [];
+  for (const service of serviceKeywords.slice(0, 12)) {
+    for (const location of targetLocations.slice(0, 6)) keywordIdeas.push(service + ' in ' + location);
+  }
+  return {
+    json: {
+      ...client,
+      engine,
+      source_platform: sourceByEngine[engine],
+      status: 'success',
+      summary: 'Keyword/local SEO opportunities generated from configured client services and target locations only.',
+      key_insights: ['Generated ' + keywordIdeas.length + ' configured service-location combinations.'],
+      recommendations: keywordIdeas.slice(0, 20),
+      next_actions: ['Connect Google Search Console or a keyword research API before reporting volume, rank, or difficulty.'],
+      confidence_score: 0.5,
+      raw_payload: { data_policy: 'configured_inputs_only_no_rank_volume_claims', keyword_ideas: keywordIdeas, service_keywords: serviceKeywords, target_locations: targetLocations }
+    }
+  };
+}
+if (engine === 'campaign_offer_intelligence') {
+  const offers = asArray(client.active_offers);
+  const seasonalCampaigns = asArray(client.seasonal_campaigns);
+  const goals = asArray(client.campaign_goals);
+  if (!client.campaign_enabled || (offers.length + seasonalCampaigns.length + goals.length) === 0) {
+    const missing = [];
+    if (!client.campaign_enabled) missing.push('campaign_enabled=true');
+    if ((offers.length + seasonalCampaigns.length + goals.length) === 0) missing.push('active_offers or seasonal_campaigns or campaign_goals');
+    return skip('Campaign intelligence skipped because campaign configuration is missing.', missing);
+  }
+  return {
+    json: {
+      ...client,
+      engine,
+      source_platform: 'campaigns',
+      status: 'success',
+      summary: 'Campaign ideas prepared from configured offers, seasons, and goals only.',
+      key_insights: goals.map((goal) => 'Goal configured: ' + goal),
+      recommendations: [...offers, ...seasonalCampaigns].slice(0, 20).map((item) => 'Build campaign around: ' + item),
+      next_actions: ['Connect performance sources before optimizing offers from live demand or competitor gaps.'],
+      confidence_score: 0.5,
+      raw_payload: { data_policy: 'configured_campaign_inputs_only', offers, seasonal_campaigns: seasonalCampaigns, goals }
+    }
+  };
+}
+if (engine === 'digital_marketing_strategy') {
+  return {
+    json: {
+      ...client,
+      engine,
+      source_platform: 'strategy',
+      status: 'partial_success',
+      summary: 'Digital strategy shell prepared from available configured engine outputs; missing live Google/SEO/competitor data remains explicit.',
+      key_insights: ['Strategy combines only stored engine outputs and configured public-source checks.'],
+      recommendations: ['Run website/SEO/competitor engines after configuring real sources.', 'Connect Google Business Profile and Search Console before reporting Google visibility.'],
+      next_actions: ['Review client_readiness_status before enabling daily automation.'],
+      confidence_score: 0.45,
+      digital_marketing_health_score: null,
+      social_media_health_score: null,
+      seo_health_score: null,
+      website_health_score: null,
+      google_business_profile_health_score: null,
+      reputation_health_score: null,
+      client_readiness_status: 'partial_configuration',
+      raw_payload: { data_policy: 'no_fake_live_data', strategy_inputs: 'stored_outputs_and_configured_public_checks_only' }
+    }
+  };
+}
+return skip(engine + ' skipped because this engine has no live adapter or configured public check in the orchestrator yet.', setup[engine] || ['Implement real adapter or configure public source.']);
+`
+    }
+  },
+  output: [{ client_id: 'client_slug_here', engine: 'website_audit_intelligence', status: 'skipped_missing_config', summary: 'Missing config', raw_payload: {} }]
+});
 
-const instagramPlaceholder = placeholderNode('PLACEHOLDER - Instagram Intelligence Engine - Not Implemented Yet', 'instagram_intelligence', 1620, 420);
-const contentPlaceholder = placeholderNode('PLACEHOLDER - Content Performance Engine - Not Implemented Yet', 'content_performance', 1620, 520);
-const trendsPlaceholder = placeholderNode('PLACEHOLDER - Trends Intelligence Engine - Not Implemented Yet', 'trends_intelligence', 1620, 620);
-const demographicsPlaceholder = placeholderNode('PLACEHOLDER - Demographics Intelligence Engine - Not Implemented Yet', 'demographics_intelligence', 1620, 720);
-const competitorPlaceholder = placeholderNode('PLACEHOLDER - Competitor Intelligence Engine - Not Implemented Yet', 'competitor_intelligence', 1620, 820);
-const googleBusinessPlaceholder = placeholderNode('PLACEHOLDER - Google Business Intelligence Engine - Not Implemented Yet', 'google_business_intelligence', 1620, 920);
-const reviewPlaceholder = placeholderNode('PLACEHOLDER - Review Intelligence Engine - Not Implemented Yet', 'review_intelligence', 1620, 1020);
-const socialStrategyPlaceholder = placeholderNode('PLACEHOLDER - Social Media Strategy Engine - Not Implemented Yet', 'social_media_strategy', 1620, 1120);
-const calendarPlaceholder = placeholderNode('PLACEHOLDER - Content Calendar Strategy Engine - Not Implemented Yet', 'content_calendar_strategy', 1620, 1220);
-const campaignPlaceholder = placeholderNode('PLACEHOLDER - Campaign Strategy Engine - Not Implemented Yet', 'campaign_strategy', 1620, 1320);
-const growthPlaceholder = placeholderNode('PLACEHOLDER - Business Growth Strategy Engine - Not Implemented Yet', 'business_growth_strategy', 1620, 1420);
+const storeDigitalPresenceResult = node({
+  type: 'n8n-nodes-base.postgres',
+  version: 2.6,
+  config: {
+    name: 'Digital Presence - Store engine_runs And intelligence_outputs',
+    position: [1920, 760],
+    parameters: {
+      operation: 'executeQuery',
+      query: expr("with run_row as (insert into engine_runs (client_id, engine_name, mode, status, completed_at, error_message, metadata) values ('{{ $json.id }}'::uuid, '{{ $json.engine }}', '{{ $json.mode }}', '{{ $json.status }}', now(), case when '{{ $json.status }}' = 'failed' then $$ {{ ($json.summary || '').replace(/\\$\\$/g, '') }} $$ else null end, jsonb_build_object('client_slug', '{{ $json.client_slug }}', 'data_policy', 'no_fake_live_data', 'setup_requirements', $$ {{ JSON.stringify($json.setup_requirements || []).replace(/\\$\\$/g, '') }} $$::jsonb)) returning id), raw_row as (insert into raw_engine_data (client_id, engine_name, source_platform, date_range_start, date_range_end, raw_payload) values ('{{ $json.id }}'::uuid, '{{ $json.engine }}', '{{ $json.source_platform || \"digital_presence\" }}', '{{ $json.date_range_start }}'::date, '{{ $json.date_range_end }}'::date, $$ {{ JSON.stringify($json.raw_payload || {}).replace(/\\$\\$/g, '') }} $$::jsonb) returning id), output_row as (insert into intelligence_outputs (client_id, engine_name, source_platform, report_date, summary, key_insights, recommendations, next_actions, confidence_score, input_sources) values ('{{ $json.id }}'::uuid, '{{ $json.engine }}', '{{ $json.source_platform || \"digital_presence\" }}', '{{ $json.run_date }}'::date, $$ {{ ($json.summary || '').replace(/\\$\\$/g, '') }} $$, $$ {{ JSON.stringify($json.key_insights || []).replace(/\\$\\$/g, '') }} $$::jsonb, $$ {{ JSON.stringify($json.recommendations || []).replace(/\\$\\$/g, '') }} $$::jsonb, $$ {{ JSON.stringify($json.next_actions || []).replace(/\\$\\$/g, '') }} $$::jsonb, {{ Number($json.confidence_score || 0) }}, jsonb_build_object('engine_run_id', (select id from run_row), 'raw_reference_id', (select id from raw_row), 'status', '{{ $json.status }}')) returning id) select (select id from run_row) as engine_run_id, (select id from raw_row) as raw_reference_id, (select id from output_row) as intelligence_output_id;"),
+      options: { largeNumbersOutput: 'numbers' }
+    },
+    credentials: { postgres: newCredential('Supabase Postgres') }
+  },
+  output: [{ engine_run_id: '66666666-6666-6666-6666-666666666666', raw_reference_id: '77777777-7777-7777-7777-777777777777', intelligence_output_id: '88888888-8888-8888-8888-888888888888' }]
+});
 
-const triggerNote = sticky('## A. Trigger Section\\nManual trigger supports pinned input for testing. Schedule trigger runs daily at 8:00 AM Asia/Kolkata via workflow timezone/cron.', [manualTrigger, scheduleTrigger, runtimeConfig], { color: 4 });
-const dbNote = sticky('## Database\\nBind the `Supabase Postgres` credential after import. Run `vip_intelligence_schema.sql` first.', [loadClients, createEngineRun, storeRawData, storeNormalizedMetrics, storeAiOutput], { color: 5 });
-const placeholderNote = sticky('## Placeholder Engines\\nAll non-Facebook engines return `{ status: \"skipped\", reason: \"Engine not implemented in Phase 1\" }` and are ready to expand later.', [instagramPlaceholder, growthPlaceholder], { color: 3 });
+const finalDigitalPresenceResponse = node({
+  type: 'n8n-nodes-base.code',
+  version: 2,
+  config: {
+    name: 'Digital Presence - Final JSON Response',
+    position: [2220, 760],
+    parameters: {
+      mode: 'runOnceForEachItem',
+      language: 'javaScript',
+      jsCode: `
+const result = $('Digital Presence - Guarded Live/Public Data Engine').item.json;
+return {
+  json: {
+    client_id: result.client_slug,
+    engine: result.engine,
+    status: result.status,
+    summary: result.summary,
+    key_insights: result.key_insights || [],
+    recommendations: result.recommendations || [],
+    next_actions: result.next_actions || [],
+    setup_requirements: result.setup_requirements || [],
+    data_policy: result.raw_payload?.data_policy || 'no_fake_live_data'
+  }
+};`
+    }
+  },
+  output: [{ client_id: 'client_slug_here', engine: 'website_audit_intelligence', status: 'skipped_missing_config', data_policy: 'no_fake_live_data' }]
+});
+
+const legacySkippedEngine = node({
+  type: 'n8n-nodes-base.code',
+  version: 2,
+  config: {
+    name: 'Legacy Social/Context Engine - Skipped Missing Implementation',
+    position: [1620, 520],
+    parameters: {
+      mode: 'runOnceForEachItem',
+      language: 'javaScript',
+      jsCode: `
+return {
+  json: {
+    client_id: $json.client_slug,
+    engine: $json.engine,
+    status: 'skipped_missing_config',
+    summary: $json.engine + ' is not connected to a live adapter in this workflow yet.',
+    key_insights: [],
+    recommendations: ['Connect a real platform API/public data adapter before enabling this engine.'],
+    next_actions: ['Configure required credentials and source IDs.'],
+    data_policy: 'no_fake_live_data'
+  }
+};`
+    }
+  },
+  output: [{ client_id: 'client_slug_here', engine: 'instagram_intelligence', status: 'skipped_missing_config', data_policy: 'no_fake_live_data' }]
+});
+
+const triggerNote = sticky('## A. Trigger Section\\nManual trigger supports pinned input for testing. Schedule trigger runs daily at 8:00 AM Asia/Kolkata when the workflow timezone is Asia/Kolkata.', [manualTrigger, scheduleTrigger, runtimeConfig], { color: 4 });
+const dbNote = sticky('## Database\\nBind the `Supabase Postgres` credential after import. Run `vip_intelligence_schema.sql` first. Client rows store source IDs and credential references, not raw platform secrets.', [loadClients, createEngineRun, storeRawData, storeNormalizedMetrics, storeAiOutput], { color: 5 });
+const digitalPolicyNote = sticky('## Digital Presence Data Policy\\nGoogle/SEO/review/competitor engines never fabricate live data. They use configured public website checks where possible, or return and store `skipped_missing_config` with setup requirements.', [guardedDigitalPresenceEngine, storeDigitalPresenceResult, finalDigitalPresenceResponse], { color: 3 });
 
 export default workflow('vip-intelligence-engine-orchestrator', 'VIP Intelligence Engine Orchestrator')
   .add(triggerNote)
   .add(dbNote)
-  .add(placeholderNote)
+  .add(digitalPolicyNote)
   .add(manualTrigger)
   .to(runtimeConfig)
   .to(loadClients)
@@ -844,17 +1207,25 @@ export default workflow('vip-intelligence-engine-orchestrator', 'VIP Intelligenc
       .onTrue(facebookMetricRegistry.to(collectFacebookGraphData).to(normalizeFacebookData).to(storeRawData).to(storeNormalizedMetrics).to(storeFacebookAnalyticsSnapshot).to(updateFacebookSocialStreak).to(queryHistoricalComparison).to(prepareAiPrompt).to(aiSummary).to(storeAiOutput).to(storeFacebookAnalyticsSummary).to(updateEngineRunSuccess).to(finalFacebookResponse))
       .onFalse(updateEngineRunConfigFailure.to(updateFacebookSocialStreakFailure).to(finalConfigFailureResponse))
     ))
-    .onCase(1, instagramPlaceholder)
-    .onCase(2, contentPlaceholder)
-    .onCase(3, trendsPlaceholder)
-    .onCase(4, demographicsPlaceholder)
-    .onCase(5, competitorPlaceholder)
-    .onCase(6, googleBusinessPlaceholder)
-    .onCase(7, reviewPlaceholder)
-    .onCase(8, socialStrategyPlaceholder)
-    .onCase(9, calendarPlaceholder)
-    .onCase(10, campaignPlaceholder)
-    .onCase(11, growthPlaceholder)
+    .onCase(1, legacySkippedEngine)
+    .onCase(2, legacySkippedEngine)
+    .onCase(3, legacySkippedEngine)
+    .onCase(4, legacySkippedEngine)
+    .onCase(5, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(6, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(7, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(8, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(9, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(10, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(11, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(12, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(13, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(14, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(15, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(16, legacySkippedEngine)
+    .onCase(17, legacySkippedEngine)
+    .onCase(18, legacySkippedEngine)
+    .onCase(19, legacySkippedEngine)
   )
   .add(scheduleTrigger)
   .to(runtimeConfig);

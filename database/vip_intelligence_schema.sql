@@ -8,12 +8,85 @@ create table if not exists clients (
   location text,
   facebook_page_id text,
   facebook_page_access_token text,
+  facebook_page_access_token_env_key text,
   instagram_business_id text,
+  instagram_access_token_env_key text,
+  youtube_channel_id text,
+  youtube_api_key_env_key text,
   google_business_profile_id text,
+  google_business_profile_account_id text,
+  google_business_profile_location_id text,
+  google_business_profile_place_id text,
+  google_business_profile_url text,
+  google_business_profile_enabled boolean default false,
+  google_business_profile_credential_ref text,
+  google_business_profile_credential_env_key text,
+  website_url text,
+  primary_domain text,
+  sitemap_url text,
+  robots_txt_url text,
+  target_locations jsonb default '[]'::jsonb,
+  service_keywords jsonb default '[]'::jsonb,
+  priority_services jsonb default '[]'::jsonb,
+  seo_enabled boolean default false,
+  website_audit_enabled boolean default false,
+  competitor_names jsonb default '[]'::jsonb,
+  competitor_websites jsonb default '[]'::jsonb,
+  competitor_google_business_urls jsonb default '[]'::jsonb,
+  competitor_instagram_handles jsonb default '[]'::jsonb,
+  competitor_facebook_pages jsonb default '[]'::jsonb,
+  competitor_youtube_channels jsonb default '[]'::jsonb,
+  competitor_enabled boolean default false,
+  review_platforms jsonb default '[]'::jsonb,
+  review_response_policy jsonb default '{}'::jsonb,
+  reputation_enabled boolean default false,
+  active_offers jsonb default '[]'::jsonb,
+  seasonal_campaigns jsonb default '[]'::jsonb,
+  campaign_goals jsonb default '[]'::jsonb,
+  campaign_enabled boolean default false,
+  engine_cadence_config jsonb default '{"daily":["facebook_intelligence","instagram_intelligence","youtube_intelligence","google_business_intelligence_lightweight","review_intelligence_lightweight","content_performance","daily_content_production","adaptive_plan_update","digital_marketing_strategy"],"weekly":["website_audit_intelligence","seo_intelligence","competitor_intelligence","local_seo_intelligence","keyword_opportunity_intelligence","content_gap_intelligence","campaign_offer_intelligence"],"monthly_manual":["30_day_content_plan_engine","full_competitor_review","full_website_audit","digital_strategy_reset"]}'::jsonb,
+  daily_automation_enabled boolean default false,
   active boolean default true,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
+
+alter table clients add column if not exists facebook_page_access_token_env_key text;
+alter table clients add column if not exists instagram_access_token_env_key text;
+alter table clients add column if not exists youtube_channel_id text;
+alter table clients add column if not exists youtube_api_key_env_key text;
+alter table clients add column if not exists google_business_profile_account_id text;
+alter table clients add column if not exists google_business_profile_location_id text;
+alter table clients add column if not exists google_business_profile_place_id text;
+alter table clients add column if not exists google_business_profile_url text;
+alter table clients add column if not exists google_business_profile_enabled boolean default false;
+alter table clients add column if not exists google_business_profile_credential_ref text;
+alter table clients add column if not exists google_business_profile_credential_env_key text;
+alter table clients add column if not exists website_url text;
+alter table clients add column if not exists primary_domain text;
+alter table clients add column if not exists sitemap_url text;
+alter table clients add column if not exists robots_txt_url text;
+alter table clients add column if not exists target_locations jsonb default '[]'::jsonb;
+alter table clients add column if not exists service_keywords jsonb default '[]'::jsonb;
+alter table clients add column if not exists priority_services jsonb default '[]'::jsonb;
+alter table clients add column if not exists seo_enabled boolean default false;
+alter table clients add column if not exists website_audit_enabled boolean default false;
+alter table clients add column if not exists competitor_names jsonb default '[]'::jsonb;
+alter table clients add column if not exists competitor_websites jsonb default '[]'::jsonb;
+alter table clients add column if not exists competitor_google_business_urls jsonb default '[]'::jsonb;
+alter table clients add column if not exists competitor_instagram_handles jsonb default '[]'::jsonb;
+alter table clients add column if not exists competitor_facebook_pages jsonb default '[]'::jsonb;
+alter table clients add column if not exists competitor_youtube_channels jsonb default '[]'::jsonb;
+alter table clients add column if not exists competitor_enabled boolean default false;
+alter table clients add column if not exists review_platforms jsonb default '[]'::jsonb;
+alter table clients add column if not exists review_response_policy jsonb default '{}'::jsonb;
+alter table clients add column if not exists reputation_enabled boolean default false;
+alter table clients add column if not exists active_offers jsonb default '[]'::jsonb;
+alter table clients add column if not exists seasonal_campaigns jsonb default '[]'::jsonb;
+alter table clients add column if not exists campaign_goals jsonb default '[]'::jsonb;
+alter table clients add column if not exists campaign_enabled boolean default false;
+alter table clients add column if not exists engine_cadence_config jsonb default '{"daily":["facebook_intelligence","instagram_intelligence","youtube_intelligence","google_business_intelligence_lightweight","review_intelligence_lightweight","content_performance","daily_content_production","adaptive_plan_update","digital_marketing_strategy"],"weekly":["website_audit_intelligence","seo_intelligence","competitor_intelligence","local_seo_intelligence","keyword_opportunity_intelligence","content_gap_intelligence","campaign_offer_intelligence"],"monthly_manual":["30_day_content_plan_engine","full_competitor_review","full_website_audit","digital_strategy_reset"]}'::jsonb;
+alter table clients add column if not exists daily_automation_enabled boolean default false;
 
 create table if not exists engine_runs (
   id uuid primary key default gen_random_uuid(),
