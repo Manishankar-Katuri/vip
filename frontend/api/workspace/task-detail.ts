@@ -1,1 +1,1 @@
-export { default } from './tasks/[id]'
+export { default } from './tasks/[id].js'

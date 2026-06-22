@@ -18,7 +18,8 @@ export type ApiResponse = {
   status: (statusCode: number) => { json: (body: unknown) => unknown }
 }
 
-export type SupabaseAdmin = ReturnType<typeof createClient>
+export type SupabaseAdmin = ReturnType<typeof getSupabaseAdmin>
+export type ApiBody = Record<string, unknown>
 export type WorkspaceAuth = {
   mode: 'user' | 'internal'
   userId: string | null
@@ -97,7 +98,7 @@ export async function requireWorkspaceAuth(request: ApiRequest, response: ApiRes
   }
 }
 
-export function bodyWithActor(body: Record<string, unknown> | undefined, auth: WorkspaceAuth) {
+export function bodyWithActor(body: Record<string, unknown> | undefined, auth: WorkspaceAuth): ApiBody {
   return {
     ...(body || {}),
     current_user_id: auth.userId || auth.actorLabel,

@@ -44,7 +44,7 @@ export default async function handler(request: ApiRequest<WorkflowBody>, respons
     const context = await requireWorkspaceAuth(request, response, { allowInternalWorkflow: true })
     if (!context) return
     const { auth, supabase } = context
-    const body = bodyWithActor(request.body, auth)
+    const body = bodyWithActor(request.body, auth) as WorkflowBody & Record<string, unknown>
     const items = Array.isArray(body.items) ? body.items : []
 
     if (!body.source_workflow_run_id) return response.status(400).json({ error: 'source_workflow_run_id is required' })

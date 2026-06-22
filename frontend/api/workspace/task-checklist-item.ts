@@ -1,1 +1,1 @@
-export { default } from './tasks/[id]/checklist/[itemId]'
+export { default } from './tasks/[id]/checklist/[itemId].js'
