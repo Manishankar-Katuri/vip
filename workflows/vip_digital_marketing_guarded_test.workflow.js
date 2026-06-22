@@ -53,11 +53,14 @@ const asArray = (value) => {
 };
 const hasText = (value) => typeof value === 'string' && value.trim().length > 0;
 const clientSlug = input.client_slug || input.client_id || 'aayu_geriatrics';
+const testMode = toBool(input.test_mode, true);
+const writesDisabled = toBool(input.disable_writes, true);
 const requested = input.engine && input.engine !== 'all' ? asArray(input.engine) : allEngines;
 const selected = requested.filter((engine) => allEngines.includes(engine));
 const enginesToRun = selected.length ? selected : allEngines;
 const config = {
   website_url: input.website_url || '',
+  primary_domain: input.primary_domain || '',
   google_business_profile_url: input.google_business_profile_url || input.gbp_url || '',
   google_business_profile_safe_reference_configured: Boolean(input.google_business_profile_credential_env_key || input.gbp_safe_reference_configured),
   service_keywords: asArray(input.service_keywords || input.priority_services),
@@ -79,7 +82,7 @@ const baseInputsUsed = () => ({
   competitor_websites_count: config.competitor_websites.length,
   review_platforms_count: config.review_platforms.length,
   campaign_inputs_count: config.active_offers.length + config.seasonal_campaigns.length + config.campaign_goals.length,
-  public_fetch_enabled: false,
+  public_fetch_enabled: Boolean(config.allow_public_fetch),
   live_platform_apis_enabled: false,
   database_writes_enabled: false
 });
@@ -93,7 +96,7 @@ const card = (engineName, status, summary, recommendations) => ({
   recommendations,
   source_engine: engineName
 });
-const result = (engineName, status, summary, findings, recommendations, nextActions, missing = []) => ({
+const result = (engineName, status, summary, findings, recommendations, nextActions, missing = [], extra = {}) => ({
   client_slug: clientSlug,
   engine_name: engineName,
   status,
@@ -106,7 +109,8 @@ const result = (engineName, status, summary, findings, recommendations, nextActi
   test_mode: true,
   writes_disabled: true,
   summary,
-  remaining_config_needed: missing
+  remaining_config_needed: missing,
+  ...extra
 });
 const skip = (engineName, summary, missing) => result(
   engineName,
@@ -117,6 +121,128 @@ const skip = (engineName, summary, missing) => result(
   missing,
   missing
 );
+const normalizeHost = (value) => String(value || '').trim().toLowerCase().replace(/\.$/, '');
+const isIpLiteral = (host) => /^(\d{1,3}\.){3}\d{1,3}$/.test(host) || host.includes(':');
+const isPrivateOrInternalHost = (host) => {
+  const normalized = normalizeHost(host);
+  if (!normalized) return true;
+  if (['localhost', 'localhost.localdomain'].includes(normalized)) return true;
+  if (normalized.endsWith('.localhost') || normalized.endsWith('.local') || normalized.endsWith('.internal')) return true;
+  if (!/^(\d{1,3}\.){3}\d{1,3}$/.test(normalized)) return false;
+  const parts = normalized.split('.').map((part) => Number(part));
+  if (parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return true;
+  const first = parts[0];
+  const second = parts[1];
+  return first === 0 || first === 10 || first === 127 || (first === 169 && second === 254) || (first === 172 && second >= 16 && second <= 31) || (first === 192 && second === 168) || (first === 100 && second >= 64 && second <= 127);
+};
+const validatePublicWebsiteUrl = (websiteUrl, primaryDomain) => {
+  if (!hasText(websiteUrl)) return { ok: false, reason: 'website_url_missing' };
+  const trimmed = String(websiteUrl).trim();
+  const parsed = trimmed.match(/^https:\/\/([^/?#]+)([/?#][^\s]*)?$/i);
+  if (!parsed) return { ok: false, reason: 'website_url_invalid' };
+  const host = normalizeHost(parsed[1].split('@').pop().split(':')[0]);
+  const expectedHost = normalizeHost(primaryDomain);
+  if (!/^https:\/\//i.test(trimmed)) return { ok: false, reason: 'https_required' };
+  if (isIpLiteral(host)) return { ok: false, reason: 'ip_literal_blocked' };
+  if (isPrivateOrInternalHost(host)) return { ok: false, reason: 'private_or_internal_host_blocked' };
+  if (expectedHost && host !== expectedHost && !host.endsWith('.' + expectedHost)) return { ok: false, reason: 'primary_domain_mismatch' };
+  return { ok: true, url: trimmed, host };
+};
+const readLimitedText = async (response, maxBytes, controller) => {
+  if (!response.body || typeof response.body.getReader !== 'function') {
+    const text = await response.text();
+    return { text: text.slice(0, maxBytes), truncated: text.length > maxBytes };
+  }
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let bytes = 0;
+  let text = '';
+  let truncated = false;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    bytes += value.byteLength;
+    if (bytes > maxBytes) {
+      truncated = true;
+      controller.abort();
+      break;
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+  text += decoder.decode();
+  return { text, truncated };
+};
+const extractWebsiteSignals = (html) => {
+  const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  const metaDescription = html.match(/<meta[^>]+name=["']description["'][^>]*content=["']([^"']*)["'][^>]*>/i)
+    || html.match(/<meta[^>]+content=["']([^"']*)["'][^>]*name=["']description["'][^>]*>/i);
+  const h1 = html.match(/<h1\b[^>]*>/i);
+  const h2 = html.match(/<h2\b[^>]*>/i);
+  const canonical = html.match(/<link[^>]+rel=["']canonical["'][^>]*>/i);
+  const visibleText = html.replace(/<script[\s\S]*?<\/script>/gi, ' ').replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').toLowerCase();
+  return {
+    title_present: Boolean(title && title[1].trim()),
+    meta_description_present: Boolean(metaDescription && metaDescription[1].trim()),
+    h1_present: Boolean(h1),
+    h2_present: Boolean(h2),
+    canonical_present: Boolean(canonical),
+    cta_or_contact_text_present: /\b(book|appointment|contact|call|whatsapp|consult|enquire|schedule)\b/.test(visibleText)
+  };
+};
+const runWebsitePublicFetch = async () => {
+  const guards = {
+    engine_is_website_audit: enginesToRun.length === 1 && enginesToRun[0] === 'website_audit_intelligence',
+    allow_public_fetch: config.allow_public_fetch === true,
+    test_mode: testMode === true,
+    disable_writes: writesDisabled === true
+  };
+  if (!Object.values(guards).every(Boolean)) return { fetch_status: 'skipped_guard_not_satisfied', guards };
+  const validation = validatePublicWebsiteUrl(config.website_url, config.primary_domain);
+  if (!validation.ok) return { fetch_status: 'skipped_invalid_public_url', guard_failure: validation.reason, guards };
+  if (typeof fetch !== 'function' || typeof AbortController !== 'function') {
+    return { fetch_status: 'network_unavailable_in_test_runtime', validated_url: validation.url, guards };
+  }
+  const maxBytes = 200000;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 5000);
+  try {
+    const response = await fetch(validation.url, {
+      method: 'GET',
+      redirect: 'manual',
+      credentials: 'omit',
+      signal: controller.signal,
+      headers: {
+        Accept: 'text/html,text/plain;q=0.9,*/*;q=0.1',
+        'User-Agent': 'VIP-Guarded-Test-WebsiteAudit/1.0'
+      }
+    });
+    const contentType = response.headers && response.headers.get ? String(response.headers.get('content-type') || '') : '';
+    const body = contentType.includes('text/html') || contentType.includes('text/plain')
+      ? await readLimitedText(response, maxBytes, controller)
+      : { text: '', truncated: false };
+    return {
+      fetch_status: 'fetched',
+      http_status: response.status,
+      final_url: response.url || validation.url,
+      response_content_type: contentType.split(';')[0] || '',
+      response_truncated: body.truncated,
+      max_response_bytes: maxBytes,
+      timeout_ms: 5000,
+      redirects: 'manual',
+      method: 'GET',
+      signals: extractWebsiteSignals(body.text)
+    };
+  } catch (error) {
+    return {
+      fetch_status: error && error.name === 'AbortError' ? 'timeout_or_size_limit_reached' : 'fetch_failed',
+      error_type: error && error.name ? error.name : 'FetchError',
+      timeout_ms: 5000,
+      max_response_bytes: maxBytes
+    };
+  } finally {
+    clearTimeout(timeout);
+  }
+};
 const engineResults = [];
 if (enginesToRun.includes('google_business_profile_intelligence')) {
   if (!hasText(config.google_business_profile_url) && !config.google_business_profile_safe_reference_configured) {
@@ -127,7 +253,27 @@ if (enginesToRun.includes('google_business_profile_intelligence')) {
 }
 if (enginesToRun.includes('website_audit_intelligence')) {
   if (!hasText(config.website_url)) engineResults.push(skip('website_audit_intelligence', 'Website audit skipped because website_url is missing.', ['website_url']));
-  else engineResults.push(result('website_audit_intelligence', 'partial_success', 'Website URL is configured; no public fetch was performed because allow_public_fetch is false.', ['No website content was fetched in this dry run.'], ['Enable an approved public website check only when needed.'], ['Keep dry-run mode for no-network validation.']));
+  else if (!config.allow_public_fetch) engineResults.push(result('website_audit_intelligence', 'partial_success', 'Website URL is configured; no public fetch was performed because allow_public_fetch is false.', ['No website content was fetched in this dry run.'], ['Enable an approved public website check only when needed.'], ['Keep dry-run mode for no-network validation.'], [], { fetch_status: 'disabled_by_default' }));
+  else {
+    const fetchAudit = await runWebsitePublicFetch();
+    const fetched = fetchAudit.fetch_status === 'fetched';
+    const safeUnavailable = fetchAudit.fetch_status === 'network_unavailable_in_test_runtime';
+    const summary = fetched
+      ? 'Website public fetch completed with safe page-level signals only.'
+      : safeUnavailable
+        ? 'Website public fetch was requested, but network fetch is unavailable in this test runtime.'
+        : 'Website public fetch was skipped or failed safely.';
+    engineResults.push(result(
+      'website_audit_intelligence',
+      fetched ? 'success' : 'partial_success',
+      summary,
+      ['No rankings, performance scores, analytics, conversion rates, or hidden metrics were claimed.'],
+      ['Use these signals only as public page checks, not SEO or performance metrics.'],
+      ['Keep allow_public_fetch disabled unless a specific public website check is intended.'],
+      [],
+      { public_fetch: fetchAudit }
+    ));
+  }
 }
 if (enginesToRun.includes('seo_intelligence')) {
   if (!hasText(config.website_url) || config.service_keywords.length === 0) engineResults.push(skip('seo_intelligence', 'SEO intelligence skipped because website_url or service keywords are missing.', ['website_url', 'service_keywords']));
@@ -184,7 +330,7 @@ return {
     client_slug: clientSlug,
     test_mode: true,
     writes_disabled: true,
-    allow_public_fetch: false,
+    allow_public_fetch: config.allow_public_fetch,
     engines_run: engineResults.map((item) => item.engine_name),
     engines_skipped: skipped,
     engine_results: engineResults,
@@ -194,7 +340,7 @@ return {
     remaining_config_needed: remaining,
     data_policy: dataPolicy,
     write_policy: 'writes_disabled_no_database_nodes',
-    network_policy: 'no_network_fetch_no_http_nodes',
+    network_policy: config.allow_public_fetch ? 'opt_in_public_fetch_website_audit_only_no_http_nodes' : 'no_network_fetch_no_http_nodes',
     platform_api_policy: 'no_live_platform_api_nodes'
   }
 };`

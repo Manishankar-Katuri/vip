@@ -46,7 +46,9 @@ for (const [nodeType, label] of forbiddenNodeTypes) {
 
 assert(count(/type:\s*['"]n8n-nodes-base\.manualTrigger['"]/g) === 1, 'Workflow must have exactly one manual trigger');
 assert(count(/trigger\s*\(/g) === 1, 'Workflow must define only one trigger');
-assert(!/credentials\s*:/.test(source), 'Workflow must not define node credentials');
+const credentialPropertyLines = sourceLinesMatching(/\bcredentials\s*:/);
+const unsafeCredentialPropertyLines = credentialPropertyLines.filter(({ line }) => !/credentials\s*:\s*['"]omit['"]/.test(line));
+assert(unsafeCredentialPropertyLines.length === 0, `Workflow must not define node credentials: ${unsafeCredentialPropertyLines.map((match) => `line ${match.number}`).join(', ')}`);
 assert(!/credential\s*\(/.test(source), 'Workflow must not call credential helpers');
 assert(!/setNodeCredential/.test(source), 'Workflow must not set credentials');
 assert(!/\b(insert|update|delete|upsert)\s+into\b/i.test(source), 'Workflow must not contain database write SQL');
@@ -138,11 +140,29 @@ assert(contains('disable_writes: true'), 'Manual trigger sample must default dis
 assert(contains('writes_disabled: true'), 'Workflow output must always keep writes_disabled true');
 assert(contains('allow_public_fetch: false'), 'Workflow must default allow_public_fetch to false');
 assert(contains('toBool(input.allow_public_fetch, false)'), 'allow_public_fetch must default false in runtime config');
-assert(contains('public_fetch_enabled: false'), 'Runtime output must report public fetch disabled');
-assert(contains("network_policy: 'no_network_fetch_no_http_nodes'"), 'Workflow must report no-network policy');
+assert(contains('public_fetch_enabled: Boolean(config.allow_public_fetch)'), 'Runtime output must report public fetch request state');
+assert(contains("network_policy: config.allow_public_fetch ? 'opt_in_public_fetch_website_audit_only_no_http_nodes' : 'no_network_fetch_no_http_nodes'"), 'Workflow must report opt-in website-audit-only network policy when public fetch is requested');
 assert(contains("write_policy: 'writes_disabled_no_database_nodes'"), 'Workflow must report no-write policy');
 assert(contains("platform_api_policy: 'no_live_platform_api_nodes'"), 'Workflow must report no-platform-API policy');
 assert(contains("const dataPolicy = 'no_fake_live_data';"), 'Workflow must set no-fake-live-data policy');
+
+assert(contains('const runWebsitePublicFetch = async () => {'), 'Workflow must isolate public fetch in a dedicated helper');
+assert(contains("enginesToRun.length === 1 && enginesToRun[0] === 'website_audit_intelligence'"), 'Public fetch must be gated to Website Audit only');
+assert(contains('allow_public_fetch: config.allow_public_fetch === true'), 'Public fetch must require allow_public_fetch=true');
+assert(contains('test_mode: testMode === true'), 'Public fetch must require test_mode=true');
+assert(contains('disable_writes: writesDisabled === true'), 'Public fetch must require disable_writes=true');
+assert(contains('^https:\\/\\/'), 'Public fetch must require HTTPS URLs');
+assert(contains('primary_domain_mismatch'), 'Public fetch must enforce primary_domain host match when configured');
+assert(contains('isIpLiteral(host)'), 'Public fetch must block IP literals');
+assert(contains('isPrivateOrInternalHost(host)'), 'Public fetch must block private/internal hosts');
+assert(contains("['localhost', 'localhost.localdomain']"), 'Public fetch must block localhost hostnames');
+assert(contains('maxBytes = 200000'), 'Public fetch must cap response size');
+assert(contains('setTimeout(() => controller.abort(), 5000)'), 'Public fetch must use a short timeout');
+assert(contains("redirect: 'manual'"), 'Public fetch must avoid automatic redirect chains');
+assert(contains("method: 'GET'"), 'Public fetch must use GET');
+assert(contains("credentials: 'omit'"), 'Public fetch must omit credentials');
+assert(!/Authorization/i.test(source), 'Workflow must not send Authorization headers');
+assert(!/n8n-nodes-base\.httpRequest/.test(source), 'Workflow must not add HTTP Request nodes for public fetch');
 
 if (failures.length) {
   console.error('Guarded digital marketing workflow validation failed:');
