@@ -28,6 +28,18 @@ VITE_SUPABASE_ANON_KEY=
 
 Do not add service-role keys, database passwords, n8n webhook URLs, provider API keys, Facebook page access tokens, or YouTube API keys to browser-accessible env vars.
 
+Server-side API routes may use these backend-only variables. Do not prefix them with `VITE_` and do not expose their values to the browser:
+
+```bash
+SUPABASE_SERVICE_ROLE_KEY=
+VIP_PLATFORM_RESOLVER_INTERNAL_TOKEN=
+VIP_AAYU_FACEBOOK_PAGE_ACCESS_TOKEN=
+VIP_AAYU_INSTAGRAM_ACCESS_TOKEN=
+VIP_AAYU_YOUTUBE_API_KEY=
+```
+
+The n8n workflow must call `POST /api/platform-resolver` with a server-side HTTP header credential, for example an `Authorization: Bearer ...` or `X-VIP-Workflow-Token` header backed by `VIP_PLATFORM_RESOLVER_INTERNAL_TOKEN`. The workflow sends only `client_slug`, `platform`, `operation`, and safe params. The resolver uses client env-key references from the database, resolves the backend env var server-side, and never returns token or API-key values.
+
 ## Local Development
 
 ```bash

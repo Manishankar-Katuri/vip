@@ -233,7 +233,7 @@ const facebookConfigValid = ifElse({
   version: 2.3,
   config: {
     name: 'Facebook - Config Valid?',
-    position: [2220, 160],
+    position: [2820, 160],
     parameters: {
       conditions: {
         options: { caseSensitive: true, leftValue: '', typeValidation: 'strict' },
@@ -242,6 +242,93 @@ const facebookConfigValid = ifElse({
       }
     }
   }
+});
+
+const facebookResolverConfigCheck = node({
+  type: 'n8n-nodes-base.httpRequest',
+  version: 4.4,
+  config: {
+    name: 'Facebook - Resolver Config Check',
+    position: [2220, 160],
+    parameters: {
+      method: 'POST',
+      url: expr('{{ $env.VIP_PLATFORM_RESOLVER_URL || "https://example.invalid/api/platform-resolver" }}'),
+      authentication: 'genericCredentialType',
+      genericAuthType: 'httpHeaderAuth',
+      sendHeaders: true,
+      specifyHeaders: 'keypair',
+      headerParameters: {
+        parameters: [
+          { name: 'Content-Type', value: 'application/json' }
+        ]
+      },
+      sendBody: true,
+      contentType: 'json',
+      specifyBody: 'json',
+      jsonBody: expr('{{ { client_slug: $json.client_slug, platform: "facebook", operation: "config_check", params: { graph_api_version: $json.graph_api_version } } }}'),
+      options: {
+        timeout: 15000,
+        response: {
+          response: {
+            neverError: true,
+            responseFormat: 'json'
+          }
+        }
+      }
+    },
+    credentials: { httpHeaderAuth: newCredential('VIP Platform Resolver Internal Token') }
+  },
+  output: [{ status: 'skipped_missing_config', client_slug: 'client_slug_here', platform: 'facebook', operation: 'config_check', data: {}, metrics: {}, availability: { available_metrics: [], unavailable_metrics: [], permission_blocked_metrics: [], deprecated_metrics: [], empty_metrics: [] }, errors: [] }]
+});
+
+const applyFacebookResolverValidation = node({
+  type: 'n8n-nodes-base.code',
+  version: 2,
+  config: {
+    name: 'Facebook - Apply Resolver Validation',
+    position: [2520, 160],
+    parameters: {
+      mode: 'runOnceForEachItem',
+      language: 'javaScript',
+      jsCode: `
+const client = $('Facebook - Validate Required Client Config').item.json;
+const resolver = $json || {};
+const resolverOk = resolver.status === 'success';
+const missing = [...(client.missing_config || [])];
+if (!resolverOk) {
+  const code = resolver.errors?.[0]?.code || 'platform_resolver_unavailable';
+  missing.push('resolver:facebook:' + code);
+}
+const facebook_credential_resolution = {
+  ...(client.facebook_credential_resolution || {}),
+  resolved: resolverOk,
+  status: resolverOk ? 'resolved_by_platform_resolver' : 'platform_resolver_required',
+  mechanism: 'external_platform_resolver',
+  resolver_status: resolver.status || 'unavailable'
+};
+return {
+  json: {
+    ...client,
+    facebook_config_valid: false,
+    platform_resolver_configured: resolverOk,
+    missing_config: missing,
+    error_message: resolverOk
+      ? 'Facebook platform resolver credential check passed, but live resolver fetch is not enabled in n8n yet.'
+      : 'Facebook platform resolver failed closed: ' + missing.join(', '),
+    facebook_token_source: client.facebook_page_access_token_env_key ? 'credential_ref:' + client.facebook_page_access_token_env_key : null,
+    facebook_credential_resolution,
+    platform_resolver_response: {
+      status: resolver.status || 'unavailable',
+      platform: resolver.platform || 'facebook',
+      operation: resolver.operation || 'config_check',
+      availability: resolver.availability || null,
+      errors: resolver.errors || []
+    }
+  }
+};`
+    }
+  },
+  output: [{ facebook_config_valid: false, platform_resolver_configured: false, engine_run_id: '11111111-1111-1111-1111-111111111111', client_slug: 'client_slug_here' }]
 });
 
 const facebookMetricRegistry = node({
@@ -772,7 +859,7 @@ const updateFacebookSocialStreakFailure = node({
     position: [2670, 260],
     parameters: {
       operation: 'executeQuery',
-      query: expr("select * from update_client_social_streak('{{ $('Facebook - Validate Required Client Config').item.json.client_slug }}', '{{ $('Facebook - Validate Required Client Config').item.json.run_date }}'::date, ('{{ $('Facebook - Validate Required Client Config').item.json.date_range_end }}'::date - interval '1 day')::date, false, '[]'::jsonb, 0, 'scan_failed');"),
+      query: expr("select * from update_client_social_streak('{{ $('Facebook - Apply Resolver Validation').item.json.client_slug }}', '{{ $('Facebook - Apply Resolver Validation').item.json.run_date }}'::date, ('{{ $('Facebook - Apply Resolver Validation').item.json.date_range_end }}'::date - interval '1 day')::date, false, '[]'::jsonb, 0, 'scan_failed');"),
       options: { largeNumbersOutput: 'numbers' }
     },
     credentials: { postgres: newCredential('Supabase Postgres') }
@@ -790,7 +877,7 @@ const finalConfigFailureResponse = node({
       mode: 'runOnceForEachItem',
       language: 'javaScript',
       jsCode: `
-const client = $('Facebook - Validate Required Client Config').item.json;
+const client = $('Facebook - Apply Resolver Validation').item.json;
 return {
   json: {
     client_id: client.client_slug,
@@ -1166,7 +1253,7 @@ export default workflow('vip-intelligence-engine-orchestrator', 'VIP Intelligenc
   .to(loadClients)
   .to(prepareEngineItem)
   .to(engineRouter
-    .onCase(0, createEngineRun.to(validateFacebookConfig).to(facebookConfigValid
+    .onCase(0, createEngineRun.to(validateFacebookConfig).to(facebookResolverConfigCheck).to(applyFacebookResolverValidation).to(facebookConfigValid
       .onTrue(facebookMetricRegistry.to(collectFacebookGraphData).to(normalizeFacebookData).to(storeRawData).to(storeNormalizedMetrics).to(storeFacebookAnalyticsSnapshot).to(updateFacebookSocialStreak).to(queryHistoricalComparison).to(prepareAiPrompt).to(aiSummary).to(storeAiOutput).to(storeFacebookAnalyticsSummary).to(updateEngineRunSuccess).to(finalFacebookResponse))
       .onFalse(updateEngineRunConfigFailure.to(updateFacebookSocialStreakFailure).to(finalConfigFailureResponse))
     ))
