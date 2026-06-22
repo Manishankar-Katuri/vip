@@ -980,9 +980,13 @@ function auditHtml(fetchResult, serviceKeywords = []) {
     text_sample: text.slice(0, 1000)
   };
 }
-const requirements = [];
 const serviceKeywords = asArray(client.service_keywords || client.priority_services);
 const targetLocations = asArray(client.target_locations || client.location);
+const engineCadence = client.engine_cadence_config || {
+  daily: ['facebook_intelligence','instagram_intelligence','youtube_intelligence','google_business_intelligence_lightweight','review_intelligence_lightweight','content_performance','daily_content_production','adaptive_plan_update','digital_marketing_strategy'],
+  weekly: ['website_audit_intelligence','seo_intelligence','competitor_intelligence','local_seo_intelligence','keyword_opportunity_intelligence','content_gap_intelligence','campaign_offer_intelligence'],
+  monthly_manual: ['30_day_content_plan_engine','full_competitor_review','full_website_audit','digital_strategy_reset']
+};
 const setup = {
   google_business_intelligence: ['google_business_profile_enabled=true', 'google_business_profile_account_id', 'google_business_profile_location_id', 'google_business_profile_credential_env_key'],
   review_intelligence: ['reputation_enabled=true', 'review_platforms', 'Google Business Profile API/review source credential reference'],
@@ -996,30 +1000,111 @@ const setup = {
   campaign_offer_intelligence: ['campaign_enabled=true', 'active_offers or seasonal_campaigns or campaign_goals'],
   digital_marketing_strategy: ['At least one current engine output or configured digital-presence source']
 };
-function skip(summary, missing = setup[engine] || []) {
+function card(type, title, value, detail = '') {
+  return { type, title, value, detail };
+}
+function buildInputsUsed(extra = {}) {
+  return {
+    client_slug: client.client_slug,
+    website_url_configured: Boolean(client.website_url),
+    gbp_public_url_configured: Boolean(client.google_business_profile_url),
+    gbp_api_reference_configured: Boolean(client.google_business_profile_credential_env_key),
+    services_configured: serviceKeywords,
+    target_locations_configured: targetLocations,
+    competitor_websites_configured: asArray(client.competitor_websites),
+    review_platforms_configured: asArray(client.review_platforms),
+    active_offers_configured: asArray(client.active_offers),
+    seasonal_campaigns_configured: asArray(client.seasonal_campaigns),
+    campaign_goals_configured: asArray(client.campaign_goals),
+    ...extra
+  };
+}
+function finalize(payload) {
+  const findings = payload.findings || payload.key_insights || [];
+  const recommendations = payload.recommendations || [];
+  const nextActions = payload.next_actions || recommendations;
+  const dataPolicy = payload.data_policy || payload.raw_payload?.data_policy || 'no_fake_live_data';
+  const inputsUsed = payload.inputs_used || buildInputsUsed();
+  const frontendCards = payload.frontend_cards || [
+    card('status', 'Status', payload.status || 'skipped_missing_config', payload.summary || ''),
+    card('policy', 'Data policy', dataPolicy, 'Only configured sources and public checks are used.'),
+    card('actions', 'Next actions', nextActions.length, nextActions.slice(0, 3).join('; '))
+  ];
   return {
     json: {
       ...client,
       engine,
-      source_platform: sourceByEngine[engine] || 'digital_presence',
-      status: 'skipped_missing_config',
-      summary,
-      key_insights: [],
-      recommendations: ['Configure real API credentials or public URLs before running this engine.'],
-      next_actions: missing,
-      confidence_score: 0,
-      setup_requirements: missing,
-      raw_payload: { data_policy: 'no_fake_live_data', skipped_reason: summary, setup_requirements: missing }
+      engine_name: engine,
+      client_slug: client.client_slug,
+      source_platform: payload.source_platform || sourceByEngine[engine] || 'digital_presence',
+      status: payload.status || 'skipped_missing_config',
+      summary: payload.summary || '',
+      data_policy: dataPolicy,
+      inputs_used: inputsUsed,
+      findings,
+      key_insights: payload.key_insights || findings,
+      recommendations,
+      next_actions: nextActions,
+      frontend_cards: frontendCards,
+      confidence_score: payload.confidence_score ?? 0,
+      setup_requirements: payload.setup_requirements || [],
+      digital_marketing_health_score: payload.digital_marketing_health_score ?? null,
+      social_media_health_score: payload.social_media_health_score ?? null,
+      seo_health_score: payload.seo_health_score ?? null,
+      website_health_score: payload.website_health_score ?? null,
+      google_business_profile_health_score: payload.google_business_profile_health_score ?? null,
+      reputation_health_score: payload.reputation_health_score ?? null,
+      competitor_positioning_summary: payload.competitor_positioning_summary || 'insufficient_data',
+      top_growth_opportunities: payload.top_growth_opportunities || [],
+      urgent_fixes: payload.urgent_fixes || [],
+      recommended_next_actions: payload.recommended_next_actions || nextActions,
+      content_plan_inputs: payload.content_plan_inputs || [],
+      campaign_plan_inputs: payload.campaign_plan_inputs || [],
+      client_readiness_status: payload.client_readiness_status || (payload.status === 'success' ? 'ready_for_guarded_run' : 'partial_configuration'),
+      engine_cadence_config: engineCadence,
+      raw_payload: {
+        data_policy: dataPolicy,
+        engine_name: engine,
+        inputs_used: inputsUsed,
+        findings,
+        frontend_cards: frontendCards,
+        ...(payload.raw_payload || {})
+      }
     }
   };
+}
+function skip(summary, missing = setup[engine] || []) {
+  return finalize({
+    status: 'skipped_missing_config',
+    summary,
+    findings: ['Required configuration is missing; no live data was inferred.'],
+    recommendations: ['Configure real API credentials or public URLs before running this engine.'],
+    next_actions: missing,
+    setup_requirements: missing,
+    data_policy: 'no_fake_live_data',
+    raw_payload: { skipped_reason: summary, setup_requirements: missing }
+  });
 }
 if (engine === 'google_business_intelligence') {
   const missing = [];
   if (!client.google_business_profile_enabled) missing.push('google_business_profile_enabled=true');
-  if (!client.google_business_profile_account_id) missing.push('google_business_profile_account_id');
-  if (!client.google_business_profile_location_id) missing.push('google_business_profile_location_id');
-  if (!client.google_business_profile_credential_env_key) missing.push('google_business_profile_credential_env_key');
-  if (missing.length) return skip('Google Business Profile live data skipped because required API configuration is missing.', missing);
+  if (!client.google_business_profile_account_id && !client.google_business_profile_url) missing.push('google_business_profile_account_id or google_business_profile_url');
+  if (!client.google_business_profile_location_id && !client.google_business_profile_url) missing.push('google_business_profile_location_id or google_business_profile_url');
+  if (!client.google_business_profile_credential_env_key && !client.google_business_profile_url) missing.push('google_business_profile_credential_env_key or google_business_profile_url');
+  if (missing.length) return skip('Google Business Profile intelligence skipped because required API configuration or a public profile URL is missing.', missing);
+  if (client.google_business_profile_url && !client.google_business_profile_credential_env_key) {
+    return finalize({
+      status: 'partial_success',
+      summary: 'Google Business Profile public checklist prepared from configured public profile URL only.',
+      findings: ['Public GBP URL is configured.', 'No API credential was used; performance metrics were not claimed.'],
+      recommendations: ['Verify profile completeness, service categories, appointment links, photos, and UTM-tagged website links manually.'],
+      next_actions: ['Connect a safe GBP API credential before reporting calls, directions, searches, views, reviews, or ranking.'],
+      confidence_score: 0.35,
+      data_policy: 'configured_public_profile_checklist_only',
+      google_business_profile_health_score: 'insufficient_data',
+      raw_payload: { google_business_profile_url: client.google_business_profile_url }
+    });
+  }
   return skip('Google Business Profile API adapter is not bound in this workflow yet; no live Google data was fabricated.', ['Bind the configured GBP credential to a Google Business Profile API node/adapter.']);
 }
 if (engine === 'review_intelligence') {
@@ -1028,7 +1113,17 @@ if (engine === 'review_intelligence') {
   if (asArray(client.review_platforms).length === 0) missing.push('review_platforms');
   if (!client.google_business_profile_credential_env_key && asArray(client.review_platforms).some((p) => /google/i.test(p))) missing.push('google_business_profile_credential_env_key');
   if (missing.length) return skip('Review intelligence skipped because no configured review API/public source is available.', missing);
-  return skip('Review source configured but live review adapter is not bound in this workflow yet; no review themes were fabricated.', ['Bind Google Business Profile reviews or another approved review API adapter.']);
+  return finalize({
+    status: 'skipped_missing_config',
+    summary: 'Review source configured but live review adapter is not bound in this workflow yet; no review counts, ratings, or sentiment were fabricated.',
+    findings: ['Review platform configuration exists.', 'No approved review API adapter is currently bound.'],
+    recommendations: ['Prepare review response policy, escalation owners, and profile-link inventory before enabling live review ingestion.'],
+    next_actions: ['Bind Google Business Profile reviews or another approved review API adapter.'],
+    confidence_score: 0,
+    data_policy: 'no_fake_review_data',
+    reputation_health_score: 'insufficient_data',
+    raw_payload: { review_platforms: asArray(client.review_platforms), review_response_policy: client.review_response_policy || {} }
+  });
 }
 if (['website_audit_intelligence', 'seo_intelligence', 'content_gap_intelligence', 'landing_page_conversion_intelligence'].includes(engine)) {
   if ((engine === 'website_audit_intelligence' && !client.website_audit_enabled) || (engine === 'seo_intelligence' && !client.seo_enabled) || !client.website_url) {
@@ -1041,26 +1136,41 @@ if (['website_audit_intelligence', 'seo_intelligence', 'content_gap_intelligence
   const homepage = await fetchPublicUrl.call(this, client.website_url);
   const audit = auditHtml(homepage, serviceKeywords);
   const status = homepage.ok ? (audit.findings.length ? 'partial_success' : 'success') : 'failed';
+  const engineFindings = homepage.ok ? [
+    'Website responded from configured URL.',
+    'Title length: ' + audit.metrics.title_length,
+    'Meta description length: ' + audit.metrics.meta_description_length,
+    'Detected service keyword hits: ' + audit.metrics.service_keyword_hits.length,
+    'Configured sitemap URL: ' + Boolean(client.sitemap_url),
+    'Configured robots.txt URL: ' + Boolean(client.robots_txt_url)
+  ] : [homepage.error || 'Website request failed'];
   const recommendations = audit.findings.map((finding) => 'Fix: ' + finding);
-  return {
-    json: {
-      ...client,
-      engine,
-      source_platform: sourceByEngine[engine],
-      status,
-      summary: homepage.ok ? 'Public website check completed from configured website_url.' : 'Website public check failed for configured website_url.',
-      key_insights: homepage.ok ? [
-        'Website responded from configured URL.',
-        'Title length: ' + audit.metrics.title_length,
-        'Meta description length: ' + audit.metrics.meta_description_length,
-        'Detected service keyword hits: ' + audit.metrics.service_keyword_hits.length
-      ] : [homepage.error || 'Website request failed'],
-      recommendations,
-      next_actions: recommendations,
-      confidence_score: homepage.ok ? 0.7 : 0.2,
-      raw_payload: { data_policy: 'public_website_check_only', homepage: audit, service_keywords: serviceKeywords, target_locations: targetLocations }
-    }
-  };
+  if (engine === 'seo_intelligence') {
+    recommendations.push(...serviceKeywords.slice(0, 8).map((service) => 'Create or improve an on-page service section for: ' + service));
+    recommendations.push(...targetLocations.slice(0, 6).map((location) => 'Add local proof and service-area copy for: ' + location));
+    recommendations.push('Add healthcare service schema and FAQ schema where clinically appropriate.');
+  }
+  if (engine === 'content_gap_intelligence') {
+    recommendations.push(...serviceKeywords.slice(0, 8).map((service) => 'Create education/FAQ content for: ' + service));
+    recommendations.push('Add trust-building topics: doctor expertise, care process, patient-family guidance, and appointment preparation.');
+  }
+  if (engine === 'landing_page_conversion_intelligence') {
+    recommendations.push('Make appointment/call/WhatsApp CTA visible near top and after service explanations.');
+    recommendations.push('Add trust signals: doctor/team credibility, service proof, location clarity, and next-step reassurance.');
+  }
+  return finalize({
+    source_platform: sourceByEngine[engine],
+    status,
+    summary: homepage.ok ? 'Public website check completed from configured website_url.' : 'Website public check failed for configured website_url.',
+    findings: engineFindings,
+    recommendations,
+    next_actions: recommendations,
+    confidence_score: homepage.ok ? 0.7 : 0.2,
+    data_policy: 'public_website_check_only_no_rank_or_performance_claims',
+    website_health_score: homepage.ok ? (audit.findings.length ? 55 : 75) : 'insufficient_data',
+    seo_health_score: engine === 'seo_intelligence' && homepage.ok ? (serviceKeywords.length && targetLocations.length ? 60 : 'insufficient_data') : null,
+    raw_payload: { homepage: audit, service_keywords: serviceKeywords, target_locations: targetLocations }
+  });
 }
 if (engine === 'competitor_intelligence') {
   const competitorWebsites = asArray(client.competitor_websites);
@@ -1075,20 +1185,18 @@ if (engine === 'competitor_intelligence') {
     const fetched = await fetchPublicUrl.call(this, competitorUrl);
     competitorResults.push({ url: normalizeUrl(competitorUrl), audit: auditHtml(fetched, serviceKeywords) });
   }
-  return {
-    json: {
-      ...client,
-      engine,
-      source_platform: 'competitor',
-      status: competitorResults.some((result) => result.audit.availability.ok) ? 'partial_success' : 'failed',
-      summary: 'Competitor public website checks completed only for configured competitor_websites.',
-      key_insights: competitorResults.map((result) => result.url + ': ' + (result.audit.availability.ok ? 'reachable' : 'not reachable')),
-      recommendations: ['Review competitor positioning manually from the captured public website signals before making claims.'],
-      next_actions: ['Add official competitor GBP/social URLs and approved APIs for richer competitor intelligence.'],
-      confidence_score: 0.55,
-      raw_payload: { data_policy: 'configured_public_competitor_sources_only', competitor_results: competitorResults }
-    }
-  };
+  return finalize({
+    source_platform: 'competitor',
+    status: competitorResults.some((result) => result.audit.availability.ok) ? 'partial_success' : 'failed',
+    summary: 'Competitor public website checks completed only for configured competitor_websites.',
+    findings: competitorResults.map((result) => result.url + ': ' + (result.audit.availability.ok ? 'reachable' : 'not reachable')),
+    recommendations: ['Compare visible service coverage, CTA clarity, trust signals, content themes, and public review/profile links manually.'],
+    next_actions: ['Add official competitor GBP/social URLs and approved APIs for richer competitor intelligence.'],
+    confidence_score: 0.55,
+    data_policy: 'configured_public_competitor_sources_only_no_hidden_analytics',
+    competitor_positioning_summary: 'Public competitor source checks are available, but hidden performance analytics are not claimed.',
+    raw_payload: { competitor_results: competitorResults }
+  });
 }
 if (engine === 'local_seo_intelligence' || engine === 'keyword_opportunity_intelligence') {
   const missing = [];
@@ -1100,20 +1208,26 @@ if (engine === 'local_seo_intelligence' || engine === 'keyword_opportunity_intel
   for (const service of serviceKeywords.slice(0, 12)) {
     for (const location of targetLocations.slice(0, 6)) keywordIdeas.push(service + ' in ' + location);
   }
-  return {
-    json: {
-      ...client,
-      engine,
-      source_platform: sourceByEngine[engine],
-      status: 'success',
-      summary: 'Keyword/local SEO opportunities generated from configured client services and target locations only.',
-      key_insights: ['Generated ' + keywordIdeas.length + ' configured service-location combinations.'],
-      recommendations: keywordIdeas.slice(0, 20),
-      next_actions: ['Connect Google Search Console or a keyword research API before reporting volume, rank, or difficulty.'],
-      confidence_score: 0.5,
-      raw_payload: { data_policy: 'configured_inputs_only_no_rank_volume_claims', keyword_ideas: keywordIdeas, service_keywords: serviceKeywords, target_locations: targetLocations }
-    }
+  const clusters = {
+    high_intent: serviceKeywords.slice(0, 12).map((service) => service + ' appointment'),
+    local: keywordIdeas.slice(0, 30),
+    awareness: serviceKeywords.slice(0, 12).map((service) => 'when to consult for ' + service),
+    FAQ: serviceKeywords.slice(0, 12).map((service) => service + ' frequently asked questions'),
+    seasonal: asArray(client.seasonal_campaigns).concat(asArray(client.active_offers)).slice(0, 12)
   };
+  return finalize({
+    source_platform: sourceByEngine[engine],
+    status: 'success',
+    summary: 'Keyword/local SEO opportunities generated from configured client services and target locations only.',
+    findings: ['Generated ' + keywordIdeas.length + ' configured service-location combinations.', 'No search volume, rank, or difficulty was claimed.'],
+    recommendations: engine === 'keyword_opportunity_intelligence' ? Object.values(clusters).flat().slice(0, 30) : keywordIdeas.slice(0, 20),
+    next_actions: ['Connect Google Search Console or a keyword research API before reporting volume, rank, or difficulty.'],
+    confidence_score: 0.5,
+    data_policy: 'configured_inputs_only_no_rank_volume_claims',
+    seo_health_score: 'insufficient_data',
+    content_plan_inputs: Object.values(clusters).flat().slice(0, 25),
+    raw_payload: { keyword_ideas: keywordIdeas, keyword_clusters: clusters, service_keywords: serviceKeywords, target_locations: targetLocations }
+  });
 }
 if (engine === 'campaign_offer_intelligence') {
   const offers = asArray(client.active_offers);
@@ -1125,43 +1239,60 @@ if (engine === 'campaign_offer_intelligence') {
     if ((offers.length + seasonalCampaigns.length + goals.length) === 0) missing.push('active_offers or seasonal_campaigns or campaign_goals');
     return skip('Campaign intelligence skipped because campaign configuration is missing.', missing);
   }
-  return {
-    json: {
-      ...client,
-      engine,
-      source_platform: 'campaigns',
-      status: 'success',
-      summary: 'Campaign ideas prepared from configured offers, seasons, and goals only.',
-      key_insights: goals.map((goal) => 'Goal configured: ' + goal),
-      recommendations: [...offers, ...seasonalCampaigns].slice(0, 20).map((item) => 'Build campaign around: ' + item),
-      next_actions: ['Connect performance sources before optimizing offers from live demand or competitor gaps.'],
-      confidence_score: 0.5,
-      raw_payload: { data_policy: 'configured_campaign_inputs_only', offers, seasonal_campaigns: seasonalCampaigns, goals }
-    }
-  };
+  const campaignIdeas = [...offers, ...seasonalCampaigns, ...goals].slice(0, 20).map((item) => 'Build campaign around: ' + item);
+  return finalize({
+    source_platform: 'campaigns',
+    status: 'success',
+    summary: 'Campaign ideas prepared from configured offers, seasons, and goals only.',
+    findings: goals.map((goal) => 'Goal configured: ' + goal),
+    recommendations: campaignIdeas,
+    next_actions: ['Connect performance sources before optimizing offers from live demand or competitor gaps.'],
+    confidence_score: 0.5,
+    data_policy: 'configured_campaign_inputs_only_no_performance_projection',
+    campaign_plan_inputs: campaignIdeas,
+    raw_payload: { offers, seasonal_campaigns: seasonalCampaigns, goals }
+  });
 }
 if (engine === 'digital_marketing_strategy') {
-  return {
-    json: {
-      ...client,
-      engine,
-      source_platform: 'strategy',
-      status: 'partial_success',
-      summary: 'Digital strategy shell prepared from available configured engine outputs; missing live Google/SEO/competitor data remains explicit.',
-      key_insights: ['Strategy combines only stored engine outputs and configured public-source checks.'],
-      recommendations: ['Run website/SEO/competitor engines after configuring real sources.', 'Connect Google Business Profile and Search Console before reporting Google visibility.'],
-      next_actions: ['Review client_readiness_status before enabling daily automation.'],
-      confidence_score: 0.45,
-      digital_marketing_health_score: null,
-      social_media_health_score: null,
-      seo_health_score: null,
-      website_health_score: null,
-      google_business_profile_health_score: null,
-      reputation_health_score: null,
-      client_readiness_status: 'partial_configuration',
-      raw_payload: { data_policy: 'no_fake_live_data', strategy_inputs: 'stored_outputs_and_configured_public_checks_only' }
-    }
-  };
+  const readinessSignals = [
+    Boolean(client.website_url),
+    Boolean(client.website_audit_enabled),
+    Boolean(client.seo_enabled),
+    Boolean(client.google_business_profile_url || client.google_business_profile_credential_env_key),
+    asArray(client.competitor_websites).length > 0,
+    asArray(client.review_platforms).length > 0,
+    Boolean(client.campaign_enabled)
+  ];
+  const configuredCount = readinessSignals.filter(Boolean).length;
+  const score = configuredCount >= 4 ? Math.round((configuredCount / readinessSignals.length) * 100) : 'insufficient_data';
+  const urgentFixes = [];
+  if (!client.website_url) urgentFixes.push('Add website_url before running website/SEO/conversion engines.');
+  if (!client.google_business_profile_url && !client.google_business_profile_credential_env_key) urgentFixes.push('Add GBP public URL or safe credential reference before GBP intelligence.');
+  if (asArray(client.review_platforms).length === 0) urgentFixes.push('Configure review platforms before reputation intelligence.');
+  return finalize({
+    source_platform: 'strategy',
+    status: configuredCount ? 'partial_success' : 'skipped_missing_config',
+    summary: 'Digital strategy orchestrator prepared from configured evidence only; missing live Google/SEO/competitor data remains explicit.',
+    findings: ['Configured digital readiness signals: ' + configuredCount + ' of ' + readinessSignals.length, 'No live rank, volume, GBP performance, review count, or competitor performance was fabricated.'],
+    recommendations: ['Run weekly guarded website/SEO/competitor/local/keyword/content/campaign engines after configuration.', 'Connect Google Business Profile and Search Console before reporting Google visibility.'],
+    next_actions: ['Review client_readiness_status before enabling daily automation.'],
+    confidence_score: configuredCount ? 0.45 : 0,
+    data_policy: 'stored_outputs_and_configured_public_checks_only_no_fake_live_data',
+    digital_marketing_health_score: score,
+    social_media_health_score: 'insufficient_data',
+    seo_health_score: client.seo_enabled && serviceKeywords.length ? 'configured_inputs_only' : 'insufficient_data',
+    website_health_score: client.website_url ? 'configured_for_public_check' : 'insufficient_data',
+    google_business_profile_health_score: (client.google_business_profile_url || client.google_business_profile_credential_env_key) ? 'configured_inputs_only' : 'insufficient_data',
+    reputation_health_score: asArray(client.review_platforms).length ? 'configured_inputs_only' : 'insufficient_data',
+    competitor_positioning_summary: asArray(client.competitor_websites).length ? 'Configured competitor public websites can be checked weekly.' : 'insufficient_data',
+    top_growth_opportunities: ['Website trust and CTA clarity', 'Local service-location pages', 'Review readiness and response workflow', 'Configured campaign offers for content planning'],
+    urgent_fixes: urgentFixes,
+    recommended_next_actions: ['Complete missing config fields.', 'Run guarded weekly digital engines.', 'Keep platform credential engines unpublished until resolver credentials are configured.'],
+    content_plan_inputs: serviceKeywords.slice(0, 20),
+    campaign_plan_inputs: [...asArray(client.active_offers), ...asArray(client.seasonal_campaigns), ...asArray(client.campaign_goals)].slice(0, 20),
+    client_readiness_status: configuredCount >= 5 ? 'guarded_ready' : 'partial_configuration',
+    raw_payload: { strategy_inputs: 'stored_outputs_and_configured_public_checks_only', configured_readiness_count: configuredCount, engine_cadence_config: engineCadence }
+  });
 }
 return skip(engine + ' skipped because this engine has no live adapter or configured public check in the orchestrator yet.', setup[engine] || ['Implement real adapter or configure public source.']);
 `
@@ -1178,7 +1309,7 @@ const storeDigitalPresenceResult = node({
     position: [1920, 760],
     parameters: {
       operation: 'executeQuery',
-      query: expr("with run_row as (insert into engine_runs (client_id, engine_name, mode, status, completed_at, error_message, metadata) values ('{{ $json.id }}'::uuid, '{{ $json.engine }}', '{{ $json.mode }}', '{{ $json.status }}', now(), case when '{{ $json.status }}' = 'failed' then $$ {{ ($json.summary || '').replace(/\\$\\$/g, '') }} $$ else null end, jsonb_build_object('client_slug', '{{ $json.client_slug }}', 'data_policy', 'no_fake_live_data', 'setup_requirements', $$ {{ JSON.stringify($json.setup_requirements || []).replace(/\\$\\$/g, '') }} $$::jsonb)) returning id), raw_row as (insert into raw_engine_data (client_id, engine_name, source_platform, date_range_start, date_range_end, raw_payload) values ('{{ $json.id }}'::uuid, '{{ $json.engine }}', '{{ $json.source_platform || \"digital_presence\" }}', '{{ $json.date_range_start }}'::date, '{{ $json.date_range_end }}'::date, $$ {{ JSON.stringify($json.raw_payload || {}).replace(/\\$\\$/g, '') }} $$::jsonb) returning id), output_row as (insert into intelligence_outputs (client_id, engine_name, source_platform, report_date, summary, key_insights, recommendations, next_actions, confidence_score, input_sources) values ('{{ $json.id }}'::uuid, '{{ $json.engine }}', '{{ $json.source_platform || \"digital_presence\" }}', '{{ $json.run_date }}'::date, $$ {{ ($json.summary || '').replace(/\\$\\$/g, '') }} $$, $$ {{ JSON.stringify($json.key_insights || []).replace(/\\$\\$/g, '') }} $$::jsonb, $$ {{ JSON.stringify($json.recommendations || []).replace(/\\$\\$/g, '') }} $$::jsonb, $$ {{ JSON.stringify($json.next_actions || []).replace(/\\$\\$/g, '') }} $$::jsonb, {{ Number($json.confidence_score || 0) }}, jsonb_build_object('engine_run_id', (select id from run_row), 'raw_reference_id', (select id from raw_row), 'status', '{{ $json.status }}')) returning id) select (select id from run_row) as engine_run_id, (select id from raw_row) as raw_reference_id, (select id from output_row) as intelligence_output_id;"),
+      query: expr("with run_row as (insert into engine_runs (client_id, engine_name, mode, status, completed_at, error_message, metadata) values ('{{ $json.id }}'::uuid, '{{ $json.engine }}', '{{ $json.mode }}', '{{ $json.status }}', now(), case when '{{ $json.status }}' = 'failed' then $$ {{ ($json.summary || '').replace(/\\$\\$/g, '') }} $$ else null end, jsonb_build_object('client_slug', '{{ $json.client_slug }}', 'data_policy', '{{ $json.data_policy || \"no_fake_live_data\" }}', 'setup_requirements', $$ {{ JSON.stringify($json.setup_requirements || []).replace(/\\$\\$/g, '') }} $$::jsonb, 'client_readiness_status', '{{ $json.client_readiness_status || \"partial_configuration\" }}')) returning id), raw_row as (insert into raw_engine_data (client_id, engine_name, source_platform, date_range_start, date_range_end, raw_payload) values ('{{ $json.id }}'::uuid, '{{ $json.engine }}', '{{ $json.source_platform || \"digital_presence\" }}', '{{ $json.date_range_start }}'::date, '{{ $json.date_range_end }}'::date, $$ {{ JSON.stringify($json.raw_payload || {}).replace(/\\$\\$/g, '') }} $$::jsonb) returning id), output_row as (insert into intelligence_outputs (client_id, engine_name, source_platform, report_date, summary, key_insights, recommendations, next_actions, confidence_score, input_sources) values ('{{ $json.id }}'::uuid, '{{ $json.engine }}', '{{ $json.source_platform || \"digital_presence\" }}', '{{ $json.run_date }}'::date, $$ {{ ($json.summary || '').replace(/\\$\\$/g, '') }} $$, $$ {{ JSON.stringify($json.key_insights || $json.findings || []).replace(/\\$\\$/g, '') }} $$::jsonb, $$ {{ JSON.stringify($json.recommendations || []).replace(/\\$\\$/g, '') }} $$::jsonb, $$ {{ JSON.stringify($json.next_actions || []).replace(/\\$\\$/g, '') }} $$::jsonb, {{ Number($json.confidence_score || 0) }}, jsonb_build_object('engine_run_id', (select id from run_row), 'raw_reference_id', (select id from raw_row), 'status', '{{ $json.status }}', 'data_policy', '{{ $json.data_policy || \"no_fake_live_data\" }}', 'inputs_used', $$ {{ JSON.stringify($json.inputs_used || {}).replace(/\\$\\$/g, '') }} $$::jsonb, 'frontend_cards', $$ {{ JSON.stringify($json.frontend_cards || []).replace(/\\$\\$/g, '') }} $$::jsonb, 'client_readiness_status', '{{ $json.client_readiness_status || \"partial_configuration\" }}')) returning id) select (select id from run_row) as engine_run_id, (select id from raw_row) as raw_reference_id, (select id from output_row) as intelligence_output_id;"),
       options: { largeNumbersOutput: 'numbers' }
     },
     credentials: { postgres: newCredential('Supabase Postgres') }
@@ -1203,11 +1334,27 @@ return {
     engine: result.engine,
     status: result.status,
     summary: result.summary,
-    key_insights: result.key_insights || [],
+    data_policy: result.data_policy || result.raw_payload?.data_policy || 'no_fake_live_data',
+    inputs_used: result.inputs_used || {},
+    findings: result.findings || result.key_insights || [],
+    key_insights: result.key_insights || result.findings || [],
     recommendations: result.recommendations || [],
     next_actions: result.next_actions || [],
+    frontend_cards: result.frontend_cards || [],
     setup_requirements: result.setup_requirements || [],
-    data_policy: result.raw_payload?.data_policy || 'no_fake_live_data'
+    digital_marketing_health_score: result.digital_marketing_health_score ?? null,
+    social_media_health_score: result.social_media_health_score ?? null,
+    seo_health_score: result.seo_health_score ?? null,
+    website_health_score: result.website_health_score ?? null,
+    google_business_profile_health_score: result.google_business_profile_health_score ?? null,
+    reputation_health_score: result.reputation_health_score ?? null,
+    competitor_positioning_summary: result.competitor_positioning_summary || 'insufficient_data',
+    top_growth_opportunities: result.top_growth_opportunities || [],
+    urgent_fixes: result.urgent_fixes || [],
+    recommended_next_actions: result.recommended_next_actions || result.next_actions || [],
+    content_plan_inputs: result.content_plan_inputs || [],
+    campaign_plan_inputs: result.campaign_plan_inputs || [],
+    client_readiness_status: result.client_readiness_status || 'partial_configuration'
   }
 };`
     }
