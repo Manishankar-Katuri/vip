@@ -156,6 +156,7 @@ Expected final output:
 - Manual mode loads only the requested `client_id` or `client_slug`.
 - Scheduled mode loads all active clients.
 - The workflow defaults to `facebook_intelligence`.
+- The main orchestrator now exposes separate digital marketing engine branches for Competitor, GBP, Reviews, Website Audit, SEO, Local SEO, Keyword Opportunity, Content Gap, Landing Page Conversion, Campaign/Offer, and Digital Marketing Strategy instead of collapsing those routes into one generic digital node.
 - Google Business Profile, review, SEO, competitor, keyword, landing page, and campaign engines never fake live data.
 - Digital-presence engines use configured public website checks where possible, otherwise they return and store `skipped_missing_config` with setup requirements.
 - Facebook API collection records per-metric errors in `raw_payload`, classifies availability, and continues.

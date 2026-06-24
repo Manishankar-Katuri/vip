@@ -28,12 +28,14 @@ import {
   Library,
   LayoutDashboard,
   LogOut,
+  MapPin,
   PlayCircle,
   RefreshCw,
   Search,
   Share2,
   Settings2,
   ShieldCheck,
+  Stethoscope,
   ThumbsUp,
   TrendingUp,
   Users,
@@ -320,6 +322,13 @@ const supabase = hasSupabaseConfig ? createClient(supabaseUrl, supabaseAnonKey) 
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/digital', label: 'Digital Growth', icon: Search },
+  { to: '/digital/seo', label: 'SEO', icon: TrendingUp },
+  { to: '/digital/gbp', label: 'GBP', icon: MapPin },
+  { to: '/digital/competitors', label: 'Competitors', icon: Users },
+  { to: '/digital/doctors', label: 'Doctors', icon: Stethoscope },
+  { to: '/digital/website', label: 'Website', icon: Gauge },
+  { to: '/digital/content', label: 'Content Gaps', icon: FileText },
   { to: '/workspace', label: 'Team Workspace', icon: ClipboardCheck },
   { to: '/analytics', label: 'Analytics', icon: BarChart3 },
   { to: '/approvals', label: 'Approval Queue', icon: ClipboardCheck },
@@ -348,6 +357,17 @@ const engineCatalog: Array<{ engine: string; category: EngineCategory }> = [
   { engine: 'adaptive_plan_update', category: 'Combination / Planning / Strategy' },
   { engine: 'social_media_strategy', category: 'Combination / Planning / Strategy' },
   { engine: 'competitor_intelligence', category: 'Competitor' },
+  { engine: 'doctor_partner_intelligence', category: 'Competitor' },
+  { engine: 'google_business_intelligence', category: 'Context Intelligence' },
+  { engine: 'website_audit_intelligence', category: 'Context Intelligence' },
+  { engine: 'seo_intelligence', category: 'Context Intelligence' },
+  { engine: 'local_seo_intelligence', category: 'Context Intelligence' },
+  { engine: 'keyword_opportunity_intelligence', category: 'Context Intelligence' },
+  { engine: 'content_gap_intelligence', category: 'Context Intelligence' },
+  { engine: 'landing_page_conversion_intelligence', category: 'Context Intelligence' },
+  { engine: 'campaign_offer_intelligence', category: 'Combination / Planning / Strategy' },
+  { engine: 'digital_marketing_strategy', category: 'Combination / Planning / Strategy' },
+  { engine: 'digital_marketing_strategy_orchestrator', category: 'Combination / Planning / Strategy' },
 ]
 
 const libraryEngines = engineCatalog.map((entry) => entry.engine)
@@ -483,6 +503,8 @@ function AuthenticatedRoutes() {
           <ProtectedShell session={session}>
             <Routes>
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/digital" element={<DigitalGrowthPage />} />
+              <Route path="/digital/:section" element={<DigitalSectionPage />} />
               <Route path="/workspace" element={<WorkspacePage session={session} />} />
               <Route path="/engine-outputs" element={<EngineOutputsPage />} />
               <Route path="/approvals" element={<ApprovalQueue />} />
@@ -1296,6 +1318,270 @@ function DataQualityNotes({ output, metrics }: { output: IntelligenceOutput; met
       <p className="muted">{notes ? renderCompactValue(notes) : `${metrics.length} metric row(s); no explicit data quality notes provided.`}</p>
     </section>
   )
+}
+
+type DigitalSectionKey = 'seo' | 'gbp' | 'competitors' | 'doctors' | 'website' | 'content' | 'analytics' | 'strategy'
+
+type DigitalSectionConfig = {
+  key: DigitalSectionKey
+  title: string
+  subtitle: string
+  engines: string[]
+  icon: ComponentType<{ size?: number }>
+  primaryFields: string[]
+}
+
+const digitalSections: DigitalSectionConfig[] = [
+  {
+    key: 'seo',
+    title: 'SEO',
+    subtitle: 'Organic visibility, local search coverage, and keyword opportunities.',
+    engines: ['seo_intelligence', 'local_seo_intelligence', 'keyword_opportunity_intelligence'],
+    icon: TrendingUp,
+    primaryFields: ['seo_health_score', 'recommendations', 'content_plan_inputs'],
+  },
+  {
+    key: 'gbp',
+    title: 'Google Business Profile',
+    subtitle: 'GBP status and safe next actions while API quota is unavailable.',
+    engines: ['google_business_intelligence'],
+    icon: MapPin,
+    primaryFields: ['setup_requirements', 'reputation_health_score', 'next_actions'],
+  },
+  {
+    key: 'competitors',
+    title: 'Geriatric Competitors',
+    subtitle: 'Only geriatric, elder-care, senior-care, clinic, or hospital competitors near Aayu.',
+    engines: ['competitor_intelligence'],
+    icon: Users,
+    primaryFields: ['competitors', 'category_filter', 'geography'],
+  },
+  {
+    key: 'doctors',
+    title: 'Related Doctors',
+    subtitle: 'High-rated nearby specialists for referral, partnership, and care-network planning.',
+    engines: ['doctor_partner_intelligence'],
+    icon: Stethoscope,
+    primaryFields: ['doctors', 'doctors_by_specialty', 'rating_filter'],
+  },
+  {
+    key: 'website',
+    title: 'Website',
+    subtitle: 'WordPress service signals, PageSpeed findings, landing-page conversion notes.',
+    engines: ['website_audit_intelligence', 'landing_page_conversion_intelligence'],
+    icon: Gauge,
+    primaryFields: ['scores', 'detected_service_terms', 'website_url'],
+  },
+  {
+    key: 'content',
+    title: 'Content Gaps',
+    subtitle: 'Service topics and patient-education gaps detected from site and content inputs.',
+    engines: ['content_gap_intelligence', 'campaign_offer_intelligence'],
+    icon: FileText,
+    primaryFields: ['content_gap_candidates', 'content_plan_inputs', 'campaign_plan_inputs'],
+  },
+  {
+    key: 'analytics',
+    title: 'GA4',
+    subtitle: 'Website traffic rows from the configured GA4 property.',
+    engines: ['digital_marketing_strategy'],
+    icon: BarChart3,
+    primaryFields: ['total_users', 'sessions', 'page_views', 'source_medium'],
+  },
+  {
+    key: 'strategy',
+    title: 'Digital Strategy',
+    subtitle: 'Overall digital marketing readiness, urgent fixes, and growth opportunities.',
+    engines: ['digital_marketing_strategy', 'digital_marketing_strategy_orchestrator'],
+    icon: Bookmark,
+    primaryFields: ['digital_marketing_health_score', 'urgent_fixes', 'top_growth_opportunities'],
+  },
+]
+
+function DigitalGrowthPage() {
+  const data = useVip()
+  const cards = digitalSections.map((section) => buildDigitalSectionCard(section, data.outputs, data.engineRuns))
+  const readyCount = cards.filter((card) => card.output).length
+  const attentionCount = cards.filter((card) => card.status === 'missing' || card.status === 'skipped_quota_unavailable').length
+
+  return (
+    <Page title="Digital Growth" subtitle="Focused marketing intelligence from the n8n digital engines.">
+      <section className="metric-grid">
+        <MetricCard icon={Search} label="Digital pages" value={String(digitalSections.length)} detail="Separate pages for each useful workflow area." />
+        <MetricCard icon={CheckCircle2} label="With output" value={String(readyCount)} detail="Latest persisted rows visible to the dashboard." tone={readyCount ? 'good' : undefined} />
+        <MetricCard icon={AlertTriangle} label="Needs run/access" value={String(attentionCount)} detail="Includes first-run gaps and intentional GBP skip state." tone={attentionCount ? 'warning' : 'good'} />
+        <MetricCard icon={Clock3} label="Freshness" value={cards.some((card) => card.status === 'stale') ? 'Review' : 'Current'} detail="Outputs older than 7 days are marked stale." />
+      </section>
+
+      <section className="digital-grid">
+        {cards.map((card) => (
+          <Link key={card.config.key} className="digital-card flow-hover-surface" to={`/digital/${card.config.key}`}>
+            <div className="digital-card__header">
+              <span className="digital-card__icon"><card.config.icon size={18} /></span>
+              <StatusBadge value={card.status} />
+            </div>
+            <h3>{card.config.title}</h3>
+            <p>{card.summary}</p>
+            <div className="digital-card__meta">
+              <span>{card.date}</span>
+              <span>{card.confidence}</span>
+            </div>
+          </Link>
+        ))}
+      </section>
+    </Page>
+  )
+}
+
+function DigitalSectionPage() {
+  const { section } = useParams()
+  const data = useVip()
+  const config = digitalSections.find((entry) => entry.key === section) || digitalSections[0]
+  const outputs = config.engines
+    .map((engine) => latestEngineOutput(data.outputs, engine))
+    .filter((output): output is IntelligenceOutput => Boolean(output))
+  const runs = config.engines.map((engine) => latestEngineRun(data.engineRuns, engine)).filter((run): run is EngineRun => Boolean(run))
+  const latest = outputs[0]
+  const findings = outputs.flatMap((output) => readableList(output.key_insights)).slice(0, 8)
+  const recommendations = outputs.flatMap((output) => readableList(output.recommendations)).slice(0, 8)
+  const actions = outputs.flatMap((output) => readableList(output.next_actions)).slice(0, 8)
+
+  return (
+    <Page title={config.title} subtitle={config.subtitle}>
+      <section className="metric-grid">
+        <MetricCard icon={config.icon} label="Status" value={latest ? titleize(outputStatus(latest)) : 'Waiting'} detail={latest?.summary || 'No persisted output visible yet. Run this engine once after n8n execution is available.'} tone={latest ? (isBadStatus(outputStatus(latest)) ? 'warning' : 'good') : 'warning'} />
+        <MetricCard icon={ShieldCheck} label="Confidence" value={formatConfidence(latest?.confidence_score)} detail={latest ? `Source: ${titleize(latest.source_platform)}` : 'Confidence appears after first successful output.'} />
+        <MetricCard icon={Clock3} label="Latest output" value={latest ? formatDate(latest.report_date) : '-'} detail={latest ? formatDateTime(latest.created_at) : 'No date visible.'} />
+        <MetricCard icon={Workflow} label="Latest run" value={runs[0]?.status || '-'} detail={runs[0] ? formatDateTime(runs[0].started_at) : 'No engine run visible.'} />
+      </section>
+
+      <section className="split-grid">
+        <Panel title="Key Findings">
+          <ReadableList items={findings} empty="No concise findings visible yet." />
+        </Panel>
+        <Panel title="Recommended Actions">
+          <ReadableList items={actions.length ? actions : recommendations} empty="No next actions visible yet." />
+        </Panel>
+      </section>
+
+      <Panel title={`${config.title} Details`}>
+        {outputs.length ? (
+          <div className="digital-detail-stack">
+            {outputs.map((output) => (
+              <DigitalOutputSummary key={output.id} output={output} fields={config.primaryFields} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState title="Waiting for first output" detail="This page is connected to the workflow tables. It will populate after n8n can execute and persist this engine." />
+        )}
+      </Panel>
+
+      <Panel title="Latest Rows">
+        <DataTable
+          columns={['Engine', 'Source', 'Status', 'Summary']}
+          rows={outputs.map((output) => [
+            titleize(output.engine_name),
+            titleize(output.source_platform),
+            <StatusBadge value={outputStatus(output)} />,
+            output.summary || '-',
+          ])}
+          empty="No persisted rows visible for this page."
+        />
+      </Panel>
+    </Page>
+  )
+}
+
+function DigitalOutputSummary({ output, fields }: { output: IntelligenceOutput; fields: string[] }) {
+  const insightCount = readableList(output.key_insights).length
+  const actionCount = readableList(output.next_actions).length
+
+  return (
+    <article className="digital-output-card">
+      <div className="row-between">
+        <div>
+          <p className="eyebrow">{titleize(output.engine_name)} / {titleize(output.source_platform)}</p>
+          <h3>{output.summary || 'Output summary pending'}</h3>
+        </div>
+        <StatusBadge value={outputStatus(output)} />
+      </div>
+      <div className="specific-grid">
+        <div className="detail-field">
+          <span>Insights</span>
+          <p>{insightCount}</p>
+        </div>
+        <div className="detail-field">
+          <span>Actions</span>
+          <p>{actionCount}</p>
+        </div>
+        <div className="detail-field">
+          <span>Confidence</span>
+          <p>{formatConfidence(output.confidence_score)}</p>
+        </div>
+        <div className="detail-field">
+          <span>Report date</span>
+          <p>{formatDate(output.report_date)}</p>
+        </div>
+      </div>
+      <div className="specific-grid">
+        {fields.map((field) => (
+          <div key={field} className="detail-field">
+            <span>{titleize(field)}</span>
+            <p>{renderCompactValue(findOutputValue(output, field))}</p>
+          </div>
+        ))}
+      </div>
+    </article>
+  )
+}
+
+function ReadableList({ items, empty }: { items: string[]; empty: string }) {
+  if (!items.length) return <EmptyState title="Nothing visible yet" detail={empty} />
+  return (
+    <div className="readable-list">
+      {items.map((item, index) => (
+        <div className="insight-row" key={`${item}-${index}`}>
+          <strong>{index + 1}</strong>
+          <p>{item}</p>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function buildDigitalSectionCard(section: DigitalSectionConfig, outputs: IntelligenceOutput[], runs: EngineRun[]) {
+  const output = section.engines.map((engine) => latestEngineOutput(outputs, engine)).find(Boolean)
+  const run = section.engines.map((engine) => latestEngineRun(runs, engine)).find(Boolean)
+  const status = output ? outputStatus(output) : run?.status || 'missing'
+  return {
+    config: section,
+    output,
+    status,
+    summary: output?.summary || 'No persisted output yet. Run the engine once to populate this page.',
+    date: output ? formatDate(output.report_date) : run ? formatDateTime(run.started_at) : 'No run visible',
+    confidence: output ? `${formatConfidence(output.confidence_score)} confidence` : 'Awaiting output',
+  }
+}
+
+function outputStatus(output: IntelligenceOutput) {
+  const fromInput = findOutputValue(output, 'status')
+  return String(fromInput || engineAvailability(output))
+}
+
+function readableList(value: unknown): string[] {
+  if (!value) return []
+  if (Array.isArray(value)) return value.map(readableText).filter(Boolean).slice(0, 20)
+  if (typeof value === 'string') return value.split(/\n|•|;/).map((item) => item.trim()).filter(Boolean)
+  if (typeof value === 'object') return Object.entries(value as Record<string, unknown>).map(([key, entry]) => `${titleize(key)}: ${renderCompactValue(entry)}`)
+  return [String(value)]
+}
+
+function readableText(value: unknown) {
+  if (typeof value === 'string') return value
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (!value) return ''
+  const object = value as Record<string, unknown>
+  return previewText(String(object.summary || object.title || object.name || object.action || object.recommendation || renderCompactValue(object)))
 }
 
 function ApprovalQueue() {

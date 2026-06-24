@@ -902,16 +902,7 @@ return {
   output: [{ client_id: 'client_slug_here', engine: 'facebook_intelligence', status: 'failed' }]
 });
 
-const guardedDigitalPresenceEngine = node({
-  type: 'n8n-nodes-base.code',
-  version: 2,
-  config: {
-    name: 'Digital Presence - Guarded Live/Public Data Engine',
-    position: [1620, 760],
-    parameters: {
-      mode: 'runOnceForEachItem',
-      language: 'javaScript',
-      jsCode: `
+const digitalPresenceEngineCode = `
 const client = $json;
 const engine = client.engine;
 const sourceByEngine = {
@@ -1301,11 +1292,34 @@ if (engine === 'digital_marketing_strategy') {
   });
 }
 return skip(engine + ' skipped because this engine has no live adapter or configured public check in the orchestrator yet.', setup[engine] || ['Implement real adapter or configure public source.']);
-`
+`;
+
+const makeDigitalPresenceEngine = (name, position) => node({
+  type: 'n8n-nodes-base.code',
+  version: 2,
+  config: {
+    name,
+    position,
+    parameters: {
+      mode: 'runOnceForEachItem',
+      language: 'javaScript',
+      jsCode: digitalPresenceEngineCode
     }
   },
   output: [{ client_id: 'client_slug_here', engine: 'website_audit_intelligence', status: 'skipped_missing_config', summary: 'Missing config', raw_payload: {} }]
 });
+
+const competitorIntelligenceEngine = makeDigitalPresenceEngine('Competitor - Public Source Intelligence Engine', [1620, 560]);
+const googleBusinessProfileEngine = makeDigitalPresenceEngine('GBP - Google Business Profile Intelligence Engine', [1620, 680]);
+const reviewReputationEngine = makeDigitalPresenceEngine('Reviews - Reputation Intelligence Engine', [1620, 800]);
+const websiteAuditEngine = makeDigitalPresenceEngine('Website - Audit Intelligence Engine', [1620, 920]);
+const seoIntelligenceEngine = makeDigitalPresenceEngine('SEO - Organic Visibility Intelligence Engine', [1620, 1040]);
+const localSeoIntelligenceEngine = makeDigitalPresenceEngine('Local SEO - Service Area Intelligence Engine', [1620, 1160]);
+const keywordOpportunityEngine = makeDigitalPresenceEngine('Keywords - Opportunity Intelligence Engine', [1620, 1280]);
+const contentGapEngine = makeDigitalPresenceEngine('Content Gap - Digital Content Intelligence Engine', [1620, 1400]);
+const landingPageConversionEngine = makeDigitalPresenceEngine('Landing Page - Conversion Intelligence Engine', [1620, 1520]);
+const campaignOfferEngine = makeDigitalPresenceEngine('Campaign - Offer Intelligence Engine', [1620, 1640]);
+const digitalMarketingStrategyEngine = makeDigitalPresenceEngine('Strategy - Digital Marketing Orchestrator Engine', [1620, 1760]);
 
 const storeDigitalPresenceResult = node({
   type: 'n8n-nodes-base.postgres',
@@ -1333,7 +1347,30 @@ const finalDigitalPresenceResponse = node({
       mode: 'runOnceForEachItem',
       language: 'javaScript',
       jsCode: `
-const result = $('Digital Presence - Guarded Live/Public Data Engine').item.json;
+const engineNodeNames = [
+  'Competitor - Public Source Intelligence Engine',
+  'GBP - Google Business Profile Intelligence Engine',
+  'Reviews - Reputation Intelligence Engine',
+  'Website - Audit Intelligence Engine',
+  'SEO - Organic Visibility Intelligence Engine',
+  'Local SEO - Service Area Intelligence Engine',
+  'Keywords - Opportunity Intelligence Engine',
+  'Content Gap - Digital Content Intelligence Engine',
+  'Landing Page - Conversion Intelligence Engine',
+  'Campaign - Offer Intelligence Engine',
+  'Strategy - Digital Marketing Orchestrator Engine'
+];
+let result = null;
+for (const nodeName of engineNodeNames) {
+  try {
+    const candidate = $(nodeName).item.json;
+    if (candidate?.engine) {
+      result = candidate;
+      break;
+    }
+  } catch (error) {}
+}
+if (!result) result = $json;
 return {
   json: {
     client_id: result.client_slug,
@@ -1725,7 +1762,7 @@ return {
 
 const triggerNote = sticky('## A. Trigger Section\\nManual trigger supports pinned input for testing. Schedule trigger runs daily at 8:00 AM Asia/Kolkata when the workflow timezone is Asia/Kolkata.', [manualTrigger, scheduleTrigger, runtimeConfig], { color: 4 });
 const dbNote = sticky('## Database\\nBind the `Supabase Postgres` credential after import. Run `vip_intelligence_schema.sql` first. Client rows store source IDs and credential references, not raw platform secrets.', [loadClients, createEngineRun, storeRawData, storeNormalizedMetrics, storeAiOutput], { color: 5 });
-const digitalPolicyNote = sticky('## Digital Presence Data Policy\\nGoogle/SEO/review/competitor engines never fabricate live data. They use configured public website checks where possible, or return and store `skipped_missing_config` with setup requirements.', [guardedDigitalPresenceEngine, storeDigitalPresenceResult, finalDigitalPresenceResponse], { color: 3 });
+const digitalPolicyNote = sticky('## Digital Marketing Engine Section\\nSeparate guarded engines handle competitor, GBP, reviews, website audit, SEO, local SEO, keywords, content gaps, landing-page conversion, campaigns, and strategy. They never fabricate live data; each engine uses configured public checks or returns `skipped_missing_config` with setup requirements.', [competitorIntelligenceEngine, googleBusinessProfileEngine, reviewReputationEngine, websiteAuditEngine, seoIntelligenceEngine, localSeoIntelligenceEngine, keywordOpportunityEngine, contentGapEngine, landingPageConversionEngine, campaignOfferEngine, digitalMarketingStrategyEngine, storeDigitalPresenceResult, finalDigitalPresenceResponse], { color: 3 });
 
 export default workflow('vip-intelligence-engine-orchestrator', 'VIP Intelligence Engine Orchestrator')
   .add(triggerNote)
@@ -1745,24 +1782,24 @@ export default workflow('vip-intelligence-engine-orchestrator', 'VIP Intelligenc
     .onCase(3, dailyContentProductionPlanEngine)
     .onCase(4, legacySkippedEngine)
     .onCase(5, legacySkippedEngine)
-    .onCase(6, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
-    .onCase(7, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
-    .onCase(8, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
-    .onCase(9, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
-    .onCase(10, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
-    .onCase(11, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
-    .onCase(12, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
-    .onCase(13, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
-    .onCase(14, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
-    .onCase(15, guardedDigitalPresenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
-    .onCase(16, dailyContentProductionPlanEngine)
+    .onCase(6, competitorIntelligenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(7, googleBusinessProfileEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(8, reviewReputationEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(9, websiteAuditEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(10, seoIntelligenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(11, localSeoIntelligenceEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(12, keywordOpportunityEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(13, contentGapEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(14, landingPageConversionEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(15, campaignOfferEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
+    .onCase(16, digitalMarketingStrategyEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
     .onCase(17, legacySkippedEngine)
     .onCase(18, legacySkippedEngine)
     .onCase(19, legacySkippedEngine)
     .onCase(20, legacySkippedEngine)
     .onCase(21, dailyContentProductionPlanEngine)
     .onCase(22, dailyContentProductionPlanEngine)
-    .onCase(23, dailyContentProductionPlanEngine)
+    .onCase(23, digitalMarketingStrategyEngine.to(storeDigitalPresenceResult).to(finalDigitalPresenceResponse))
   )
   .add(scheduleTrigger)
   .to(runtimeConfig);

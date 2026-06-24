@@ -2613,6 +2613,10 @@ tbody tr:hover td {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .digital-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .page-heading {
     align-items: flex-start;
     flex-direction: column;
@@ -2644,6 +2648,10 @@ tbody tr:hover td {
   .error-strip {
     margin-left: 16px;
     margin-right: 16px;
+  }
+
+  .digital-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -2735,6 +2743,108 @@ tbody tr:hover td {
 .flow-hover-surface:hover small,
 .flow-hover-surface:hover span:not(.status-badge) {
   color: inherit;
+}
+
+.digital-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.digital-card,
+.digital-output-card {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--dash-border, #d9e5e2);
+  border-radius: 8px;
+  background: #ffffff;
+  color: inherit;
+  text-decoration: none;
+  box-shadow: var(--dash-shadow, 0 10px 30px rgba(18, 48, 44, 0.06));
+}
+
+.digital-card {
+  min-height: 198px;
+}
+
+.digital-card__header,
+.digital-card__meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.digital-card__icon {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: #0f766e;
+  background: #ccfbf1;
+}
+
+.digital-card h3,
+.digital-output-card h3 {
+  margin: 0;
+  color: #111827;
+  font-size: 17px;
+  line-height: 1.25;
+}
+
+.digital-card p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.digital-card__meta {
+  margin-top: auto;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.digital-detail-stack,
+.readable-list {
+  display: grid;
+  gap: 12px;
+}
+
+.digital-output-card .specific-grid {
+  margin-top: 2px;
+}
+
+.readable-list .insight-row {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  padding: 10px;
+}
+
+.readable-list .insight-row strong {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: #0f766e;
+  background: #ccfbf1;
+  font-size: 12px;
+}
+
+.readable-list .insight-row p {
+  margin: 2px 0 0;
 }
 
 .workspace-page {
