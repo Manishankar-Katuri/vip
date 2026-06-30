@@ -55,6 +55,7 @@ import { PointsChart } from './components/ui/points-chart'
 import type { PointsChartDataPoint } from './components/ui/points-chart'
 import { StreakCard } from './components/ui/streak-card'
 import type { StreakPeriod } from './components/ui/streak-calendar'
+import vipPreviewData from './data/vipPreviewData'
 import './App.css'
 
 declare const __SUPABASE_URL__: string | undefined
@@ -456,6 +457,8 @@ const emptyData: AppData = {
   reload: () => undefined,
 }
 
+const previewData = vipPreviewData as unknown as Omit<AppData, 'loading' | 'reload'>
+
 function App() {
   return (
     <BrowserRouter>
@@ -610,7 +613,7 @@ function useVipData(
 
     async function load() {
       if (!client || (!session && hasSupabaseConfig)) {
-        setState({ ...emptyData, loading: false })
+        setState(client ? { ...emptyData, loading: false } : { ...previewData, loading: false })
         return
       }
 
