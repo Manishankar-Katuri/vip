@@ -610,6 +610,8 @@ function useVipData(
 
   useEffect(() => {
     let cancelled = false
+    let poll: number | undefined
+    let channel: ReturnType<SupabaseClient['channel']> | null = null
 
     async function load() {
       if (!client || (!session && hasSupabaseConfig)) {
@@ -797,8 +799,34 @@ function useVipData(
     }
 
     load()
+    if (client && (!hasSupabaseConfig || session)) {
+      poll = window.setInterval(() => void load(), 15000)
+
+      if (session?.access_token) client.realtime.setAuth(session.access_token)
+      channel = client
+        .channel('vip-dashboard-live-data')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'engine_runs' }, () => void load())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'daily_operating_runs' }, () => void load())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'intelligence_outputs' }, () => void load())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'normalized_metrics' }, () => void load())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'content_plans' }, () => void load())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'content_plan_items' }, () => void load())
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'content_plan_updates' }, () => void load())
+        .subscribe()
+    }
+
+    const refreshOnFocus = () => {
+      if (document.visibilityState === 'visible') void load()
+    }
+    document.addEventListener('visibilitychange', refreshOnFocus)
+    window.addEventListener('focus', refreshOnFocus)
+
     return () => {
       cancelled = true
+      if (poll) window.clearInterval(poll)
+      if (channel) void client?.removeChannel(channel)
+      document.removeEventListener('visibilitychange', refreshOnFocus)
+      window.removeEventListener('focus', refreshOnFocus)
     }
   }, [client, session, selectedClientId, refreshKey])
 
@@ -1534,7 +1562,79 @@ function DigitalOutputSummary({ output, fields }: { output: IntelligenceOutput; 
           </div>
         ))}
       </div>
+      <PlacesOutputDetails output={output} />
     </article>
+  )
+}
+
+function PlacesOutputDetails({ output }: { output: IntelligenceOutput }) {
+  if (normalize(output.engine_name) === 'competitor_intelligence') {
+    const competitors = placesRowsFromUnknown(findOutputValue(output, 'competitors')).slice(0, 12)
+    return (
+      <section className="places-output-section">
+        <h4>Competitor Profiles</h4>
+        <PlacesCardGrid rows={competitors} empty="No competitor profiles were returned in this output." />
+      </section>
+    )
+  }
+
+  if (normalize(output.engine_name) === 'doctor_partner_intelligence') {
+    const doctors = placesRowsFromUnknown(findOutputValue(output, 'doctors')).slice(0, 15)
+    const doctorsBySpecialty = groupedPlacesRowsFromUnknown(findOutputValue(output, 'doctors_by_specialty'))
+    return (
+      <section className="places-output-section">
+        <h4>Doctor / Provider Shortlist</h4>
+        <PlacesCardGrid rows={doctors} empty="No doctor or provider profiles were returned in this output." />
+        {doctorsBySpecialty.length > 0 && (
+          <div className="places-specialty-grid">
+            {doctorsBySpecialty.map((group) => (
+              <article key={group.label} className="places-specialty-card">
+                <strong>{titleize(group.label)}</strong>
+                <ul>
+                  {group.rows.slice(0, 6).map((row) => (
+                    <li key={`${group.label}-${row.name}`}>{row.name}</li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    )
+  }
+
+  return null
+}
+
+type PlacesRow = {
+  name: string
+  category?: string
+  specialty?: string
+  rating?: string
+  reviews?: string
+  address?: string
+  distance?: string
+}
+
+function PlacesCardGrid({ rows, empty }: { rows: PlacesRow[]; empty: string }) {
+  if (!rows.length) return <EmptyState title={empty} />
+  return (
+    <div className="places-card-grid">
+      {rows.map((row, index) => (
+        <article key={`${row.name}-${index}`} className="places-card">
+          <div className="places-card__top">
+            <strong>{row.name}</strong>
+            {(row.rating || row.reviews) && <span>{[row.rating && `${row.rating} stars`, row.reviews && `${row.reviews} reviews`].filter(Boolean).join(' / ')}</span>}
+          </div>
+          <div className="badge-row">
+            {row.specialty && <StatusBadge value={titleize(row.specialty)} />}
+            {row.category && <StatusBadge value={titleize(row.category)} />}
+            {row.distance && <StatusBadge value={row.distance} />}
+          </div>
+          {row.address && <p>{row.address}</p>}
+        </article>
+      ))}
+    </div>
   )
 }
 
@@ -1727,9 +1827,13 @@ function CalendarPage() {
   const [platform, setPlatform] = useState('all')
   const [status, setStatus] = useState('all')
   const [formatFilter, setFormatFilter] = useState('all')
-  const activePlan = data.plans.find((plan) => normalize(plan.plan_status) === 'active') || data.plans[0]
+  const activePlan =
+    data.plans.find((plan) => normalize(plan.plan_type) === 'real_time_workflow_content_plan' && normalize(plan.plan_status) === 'active') ||
+    data.plans.find((plan) => normalize(plan.plan_status) === 'active') ||
+    data.plans[0]
+  const activePlanItems = activePlan ? data.items.filter((item) => item.content_plan_id === activePlan.id) : data.items
 
-  const filtered = data.items.filter((item) => {
+  const filtered = activePlanItems.filter((item) => {
     return (
       (platform === 'all' || normalize(item.platform) === platform) &&
       (status === 'all' || normalize(item.status) === status || normalize(item.approval_status) === status) &&
@@ -1741,9 +1845,9 @@ function CalendarPage() {
     <Page title="30-Day Calendar" subtitle="Planned, adaptive, production-ready, and superseded content windows.">
       <div className="toolbar">
         <StatusBadge value={activePlanLabel(activePlan)} />
-        <Filter label="Platform" value={platform} values={uniqueOptions(data.items.map((item) => item.platform))} onChange={setPlatform} />
-        <Filter label="Status" value={status} values={uniqueOptions(data.items.flatMap((item) => [item.status, item.approval_status]))} onChange={setStatus} />
-        <Filter label="Format" value={formatFilter} values={uniqueOptions(data.items.map((item) => item.content_format))} onChange={setFormatFilter} />
+        <Filter label="Platform" value={platform} values={uniqueOptions(activePlanItems.map((item) => item.platform))} onChange={setPlatform} />
+        <Filter label="Status" value={status} values={uniqueOptions(activePlanItems.flatMap((item) => [item.status, item.approval_status]))} onChange={setStatus} />
+        <Filter label="Format" value={formatFilter} values={uniqueOptions(activePlanItems.map((item) => item.content_format))} onChange={setFormatFilter} />
       </div>
       <div className="calendar-grid">
         {filtered.length ? filtered.map((item) => <CalendarTile key={item.id} item={item} />) : <EmptyState title="No calendar items match" detail="Adjust filters or wait for content plan generation." />}
@@ -3168,6 +3272,44 @@ function renderCompactValue(value: unknown) {
   if (value === null || value === undefined || value === '') return '-'
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value)
   return compactJson(sanitizeForDisplay(value))
+}
+
+function placesRowsFromUnknown(value: unknown): PlacesRow[] {
+  if (!value) return []
+  const rows = Array.isArray(value) ? value : [value]
+  return rows.map(placeRowFromUnknown).filter((row): row is PlacesRow => Boolean(row))
+}
+
+function groupedPlacesRowsFromUnknown(value: unknown): Array<{ label: string; rows: PlacesRow[] }> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+  return Object.entries(value as Record<string, unknown>)
+    .map(([label, rows]) => ({ label, rows: placesRowsFromUnknown(rows) }))
+    .filter((group) => group.rows.length > 0)
+}
+
+function placeRowFromUnknown(value: unknown): PlacesRow | null {
+  if (!value) return null
+  if (typeof value === 'string') return { name: value }
+  if (typeof value !== 'object') return null
+
+  const object = value as Record<string, unknown>
+  const name = renderCompactValue(object.name || object.title || object.place_name || object.business_name || object.provider_name)
+  if (!name || name === '-') return null
+
+  return {
+    name,
+    category: optionalDisplayValue(object.category || object.type || object.primary_type || object.place_type),
+    specialty: optionalDisplayValue(object.specialty || object.speciality || object.provider_type),
+    rating: optionalDisplayValue(object.rating || object.google_rating),
+    reviews: optionalDisplayValue(object.review_count || object.user_ratings_total || object.reviews || object.rating_count),
+    address: optionalDisplayValue(object.address || object.formatted_address || object.vicinity || object.location),
+    distance: optionalDisplayValue(object.distance || object.distance_km || object.radius || object.geography),
+  }
+}
+
+function optionalDisplayValue(value: unknown) {
+  const rendered = renderCompactValue(value)
+  return rendered === '-' ? undefined : rendered
 }
 
 function includesEngine(value: unknown, engine: string) {
